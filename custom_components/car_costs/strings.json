@@ -1,0 +1,290 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Your new car",
+        "description": "Purchase data. The investment to pay back is purchase price + extra costs − what you get for the old car.",
+        "data": {
+          "name": "Name of the new car",
+          "purchase_price": "Purchase price",
+          "extra_investment": "Extra costs (wallbox, registration…)",
+          "start_date": "Start date (delivery)",
+          "start_odometer": "Odometer at delivery (0 = first reading of the sensor)",
+          "odometer_entity": "Odometer sensor (e.g. MySkoda)"
+        }
+      },
+      "energy": {
+        "title": "Electricity and receipts",
+        "description": "Optional: the energy sensor of the plug/wallbox you charge with at home, and the AI Task entity that reads receipt photos.",
+        "data": {
+          "electricity_price": "Electricity price at home",
+          "electricity_price_entity": "Electricity price sensor (optional, overrides the price)",
+          "home_energy_entity": "Home charging energy sensor (kWh)",
+          "ai_task_entity": "AI Task for receipt photos"
+        }
+      },
+      "reference": {
+        "title": "Car to compare with",
+        "description": "The old car: for every km you drive, Car Costs calculates what it would have cost in fuel.",
+        "data": {
+          "ref_name": "Name of the old car",
+          "ref_fuel": "Fuel",
+          "ref_consumption": "Real consumption",
+          "ref_fuel_price": "Fuel price",
+          "ref_fuel_price_entity": "Fuel price sensor (e.g. Tankerkönig, optional)",
+          "old_car_sale_price": "Sale price of the old car"
+        }
+      },
+      "fixed": {
+        "title": "Yearly fixed costs",
+        "description": "Tax, insurance and maintenance per year, for both cars. Leave 0 if you do not want to compare them.",
+        "data": {
+          "new_tax": "New car: road tax / year",
+          "new_insurance": "New car: insurance / year",
+          "new_maintenance": "New car: maintenance / year",
+          "ref_tax": "Old car: road tax / year",
+          "ref_insurance": "Old car: insurance / year",
+          "ref_maintenance": "Old car: maintenance / year"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Your new car",
+        "description": "Purchase data. The investment to pay back is purchase price + extra costs − what you get for the old car.",
+        "data": {
+          "name": "Name of the new car",
+          "purchase_price": "Purchase price",
+          "extra_investment": "Extra costs (wallbox, registration…)",
+          "start_date": "Start date (delivery)",
+          "start_odometer": "Odometer at delivery (0 = first reading of the sensor)",
+          "odometer_entity": "Odometer sensor (e.g. MySkoda)"
+        }
+      },
+      "energy": {
+        "title": "Electricity and receipts",
+        "description": "Optional: the energy sensor of the plug/wallbox you charge with at home, and the AI Task entity that reads receipt photos.",
+        "data": {
+          "electricity_price": "Electricity price at home",
+          "electricity_price_entity": "Electricity price sensor (optional, overrides the price)",
+          "home_energy_entity": "Home charging energy sensor (kWh)",
+          "ai_task_entity": "AI Task for receipt photos"
+        }
+      },
+      "reference": {
+        "title": "Car to compare with",
+        "description": "The old car: for every km you drive, Car Costs calculates what it would have cost in fuel.",
+        "data": {
+          "ref_name": "Name of the old car",
+          "ref_fuel": "Fuel",
+          "ref_consumption": "Real consumption",
+          "ref_fuel_price": "Fuel price",
+          "ref_fuel_price_entity": "Fuel price sensor (e.g. Tankerkönig, optional)",
+          "old_car_sale_price": "Sale price of the old car"
+        }
+      },
+      "fixed": {
+        "title": "Yearly fixed costs",
+        "description": "Tax, insurance and maintenance per year, for both cars. Leave 0 if you do not want to compare them.",
+        "data": {
+          "new_tax": "New car: road tax / year",
+          "new_insurance": "New car: insurance / year",
+          "new_maintenance": "New car: maintenance / year",
+          "ref_tax": "Old car: road tax / year",
+          "ref_insurance": "Old car: insurance / year",
+          "ref_maintenance": "Old car: maintenance / year"
+        }
+      }
+    }
+  },
+  "selector": {
+    "fuel": {
+      "options": {
+        "diesel": "Diesel",
+        "petrol": "Petrol",
+        "lpg": "LPG",
+        "cng": "CNG"
+      }
+    },
+    "location": {
+      "options": {
+        "home": "Home",
+        "public": "Public / receipt"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "km_driven": {
+        "name": "Km driven"
+      },
+      "fuel_liters": {
+        "name": "Fuel litres"
+      },
+      "electricity_kwh": {
+        "name": "Electricity kWh"
+      },
+      "fuel_cost": {
+        "name": "Fuel cost"
+      },
+      "electricity_cost": {
+        "name": "Electricity cost"
+      },
+      "energy_cost": {
+        "name": "Energy cost"
+      },
+      "reference_cost": {
+        "name": "Old car fuel cost (same km)"
+      },
+      "energy_savings": {
+        "name": "Energy savings"
+      },
+      "fixed_cost_savings": {
+        "name": "Fixed cost savings"
+      },
+      "total_savings": {
+        "name": "Total savings"
+      },
+      "savings_per_month": {
+        "name": "Savings per month"
+      },
+      "investment": {
+        "name": "Investment"
+      },
+      "cost_per_100km": {
+        "name": "Cost per 100 km"
+      },
+      "reference_cost_per_100km": {
+        "name": "Old car cost per 100 km"
+      },
+      "avg_fuel_consumption": {
+        "name": "Average fuel consumption"
+      },
+      "amortization": {
+        "name": "Paid back"
+      },
+      "break_even_date": {
+        "name": "Break-even date"
+      }
+    }
+  },
+  "services": {
+    "add_refuel": {
+      "name": "Add refuel",
+      "description": "Log a refuel of the new car.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Car",
+          "description": "Needed only if you track more than one car."
+        },
+        "liters": {
+          "name": "Litres",
+          "description": "Litres of fuel."
+        },
+        "total_cost": {
+          "name": "Total cost",
+          "description": "Amount paid in euro."
+        },
+        "odometer": {
+          "name": "Odometer",
+          "description": "Km on the odometer (optional)."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Date of the refuel/charge (default today)."
+        },
+        "station": {
+          "name": "Station",
+          "description": "Station or operator."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Free text."
+        }
+      }
+    },
+    "add_charge": {
+      "name": "Add charge",
+      "description": "Log a charge. Without a cost, home charges use the home electricity price.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Car",
+          "description": "Needed only if you track more than one car."
+        },
+        "kwh": {
+          "name": "kWh",
+          "description": "Energy charged."
+        },
+        "total_cost": {
+          "name": "Total cost",
+          "description": "Amount paid in euro."
+        },
+        "location": {
+          "name": "Location",
+          "description": "Where you charged."
+        },
+        "odometer": {
+          "name": "Odometer",
+          "description": "Km on the odometer (optional)."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Date of the refuel/charge (default today)."
+        },
+        "station": {
+          "name": "Station",
+          "description": "Station or operator."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Free text."
+        }
+      }
+    },
+    "delete_entry": {
+      "name": "Delete entry",
+      "description": "Delete an entry from the log.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Car",
+          "description": "Needed only if you track more than one car."
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "ID of the log entry."
+        }
+      }
+    },
+    "scan_receipt": {
+      "name": "Scan receipt",
+      "description": "Read a fuel or charging receipt from a photo with AI Task.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Car",
+          "description": "Needed only if you track more than one car."
+        },
+        "image": {
+          "name": "Photo",
+          "description": "Photo of the receipt."
+        },
+        "auto_add": {
+          "name": "Add automatically",
+          "description": "Add the entry if the receipt was read completely."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "Car Costs: car not found."
+    },
+    "entry_required": {
+      "message": "Car Costs: more than one car is set up, choose which one."
+    },
+    "log_entry_not_found": {
+      "message": "Car Costs: log entry not found."
+    }
+  }
+}

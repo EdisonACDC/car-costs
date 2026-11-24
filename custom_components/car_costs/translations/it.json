@@ -1,0 +1,290 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "La nuova auto",
+        "description": "Dati d'acquisto. L'investimento da recuperare è prezzo + spese extra − quanto ricavi dalla vecchia auto.",
+        "data": {
+          "name": "Nome della nuova auto",
+          "purchase_price": "Prezzo d'acquisto",
+          "extra_investment": "Spese extra (wallbox, immatricolazione…)",
+          "start_date": "Data di inizio (consegna)",
+          "start_odometer": "Km alla consegna (0 = prima lettura del sensore)",
+          "odometer_entity": "Sensore contachilometri (es. MySkoda)"
+        }
+      },
+      "energy": {
+        "title": "Corrente e scontrini",
+        "description": "Facoltativi: il sensore di energia della presa/wallbox con cui ricarichi a casa e l'entità AI Task che legge le foto degli scontrini.",
+        "data": {
+          "electricity_price": "Prezzo corrente di casa",
+          "electricity_price_entity": "Sensore prezzo corrente (facoltativo, sostituisce il prezzo)",
+          "home_energy_entity": "Sensore energia ricarica a casa (kWh)",
+          "ai_task_entity": "AI Task per le foto degli scontrini"
+        }
+      },
+      "reference": {
+        "title": "Auto di confronto",
+        "description": "La vecchia auto: per ogni km che fai, Costi Auto calcola quanto avresti speso di carburante con lei.",
+        "data": {
+          "ref_name": "Nome della vecchia auto",
+          "ref_fuel": "Carburante",
+          "ref_consumption": "Consumo reale",
+          "ref_fuel_price": "Prezzo carburante",
+          "ref_fuel_price_entity": "Sensore prezzo carburante (es. Tankerkönig, facoltativo)",
+          "old_car_sale_price": "Prezzo di vendita della vecchia auto"
+        }
+      },
+      "fixed": {
+        "title": "Costi fissi annuali",
+        "description": "Bollo, assicurazione e manutenzione all'anno per entrambe le auto. Lascia 0 se non vuoi confrontarli.",
+        "data": {
+          "new_tax": "Nuova auto: bollo / anno",
+          "new_insurance": "Nuova auto: assicurazione / anno",
+          "new_maintenance": "Nuova auto: manutenzione / anno",
+          "ref_tax": "Vecchia auto: bollo / anno",
+          "ref_insurance": "Vecchia auto: assicurazione / anno",
+          "ref_maintenance": "Vecchia auto: manutenzione / anno"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "La nuova auto",
+        "description": "Dati d'acquisto. L'investimento da recuperare è prezzo + spese extra − quanto ricavi dalla vecchia auto.",
+        "data": {
+          "name": "Nome della nuova auto",
+          "purchase_price": "Prezzo d'acquisto",
+          "extra_investment": "Spese extra (wallbox, immatricolazione…)",
+          "start_date": "Data di inizio (consegna)",
+          "start_odometer": "Km alla consegna (0 = prima lettura del sensore)",
+          "odometer_entity": "Sensore contachilometri (es. MySkoda)"
+        }
+      },
+      "energy": {
+        "title": "Corrente e scontrini",
+        "description": "Facoltativi: il sensore di energia della presa/wallbox con cui ricarichi a casa e l'entità AI Task che legge le foto degli scontrini.",
+        "data": {
+          "electricity_price": "Prezzo corrente di casa",
+          "electricity_price_entity": "Sensore prezzo corrente (facoltativo, sostituisce il prezzo)",
+          "home_energy_entity": "Sensore energia ricarica a casa (kWh)",
+          "ai_task_entity": "AI Task per le foto degli scontrini"
+        }
+      },
+      "reference": {
+        "title": "Auto di confronto",
+        "description": "La vecchia auto: per ogni km che fai, Costi Auto calcola quanto avresti speso di carburante con lei.",
+        "data": {
+          "ref_name": "Nome della vecchia auto",
+          "ref_fuel": "Carburante",
+          "ref_consumption": "Consumo reale",
+          "ref_fuel_price": "Prezzo carburante",
+          "ref_fuel_price_entity": "Sensore prezzo carburante (es. Tankerkönig, facoltativo)",
+          "old_car_sale_price": "Prezzo di vendita della vecchia auto"
+        }
+      },
+      "fixed": {
+        "title": "Costi fissi annuali",
+        "description": "Bollo, assicurazione e manutenzione all'anno per entrambe le auto. Lascia 0 se non vuoi confrontarli.",
+        "data": {
+          "new_tax": "Nuova auto: bollo / anno",
+          "new_insurance": "Nuova auto: assicurazione / anno",
+          "new_maintenance": "Nuova auto: manutenzione / anno",
+          "ref_tax": "Vecchia auto: bollo / anno",
+          "ref_insurance": "Vecchia auto: assicurazione / anno",
+          "ref_maintenance": "Vecchia auto: manutenzione / anno"
+        }
+      }
+    }
+  },
+  "selector": {
+    "fuel": {
+      "options": {
+        "diesel": "Diesel",
+        "petrol": "Benzina",
+        "lpg": "GPL",
+        "cng": "Metano"
+      }
+    },
+    "location": {
+      "options": {
+        "home": "Casa",
+        "public": "Colonnina / scontrino"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "km_driven": {
+        "name": "Km percorsi"
+      },
+      "fuel_liters": {
+        "name": "Litri benzina"
+      },
+      "electricity_kwh": {
+        "name": "kWh corrente"
+      },
+      "fuel_cost": {
+        "name": "Spesa benzina"
+      },
+      "electricity_cost": {
+        "name": "Spesa corrente"
+      },
+      "energy_cost": {
+        "name": "Spesa energia"
+      },
+      "reference_cost": {
+        "name": "Spesa vecchia auto (stessi km)"
+      },
+      "energy_savings": {
+        "name": "Risparmio carburante"
+      },
+      "fixed_cost_savings": {
+        "name": "Risparmio costi fissi"
+      },
+      "total_savings": {
+        "name": "Risparmio totale"
+      },
+      "savings_per_month": {
+        "name": "Risparmio al mese"
+      },
+      "investment": {
+        "name": "Investimento"
+      },
+      "cost_per_100km": {
+        "name": "Costo per 100 km"
+      },
+      "reference_cost_per_100km": {
+        "name": "Costo vecchia auto per 100 km"
+      },
+      "avg_fuel_consumption": {
+        "name": "Consumo medio benzina"
+      },
+      "amortization": {
+        "name": "Ammortizzato"
+      },
+      "break_even_date": {
+        "name": "Data di pareggio"
+      }
+    }
+  },
+  "services": {
+    "add_refuel": {
+      "name": "Aggiungi rifornimento",
+      "description": "Registra un rifornimento della nuova auto.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Serve solo se segui più di un'auto."
+        },
+        "liters": {
+          "name": "Litri",
+          "description": "Litri di carburante."
+        },
+        "total_cost": {
+          "name": "Costo totale",
+          "description": "Importo pagato in euro."
+        },
+        "odometer": {
+          "name": "Km",
+          "description": "Km del contachilometri (facoltativo)."
+        },
+        "date": {
+          "name": "Data",
+          "description": "Data del rifornimento/ricarica (predefinito oggi)."
+        },
+        "station": {
+          "name": "Distributore",
+          "description": "Distributore o gestore."
+        },
+        "note": {
+          "name": "Nota",
+          "description": "Testo libero."
+        }
+      }
+    },
+    "add_charge": {
+      "name": "Aggiungi ricarica",
+      "description": "Registra una ricarica. Senza costo, a casa usa il prezzo della corrente di casa.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Serve solo se segui più di un'auto."
+        },
+        "kwh": {
+          "name": "kWh",
+          "description": "Energia caricata."
+        },
+        "total_cost": {
+          "name": "Costo totale",
+          "description": "Importo pagato in euro."
+        },
+        "location": {
+          "name": "Luogo",
+          "description": "Dove hai ricaricato."
+        },
+        "odometer": {
+          "name": "Km",
+          "description": "Km del contachilometri (facoltativo)."
+        },
+        "date": {
+          "name": "Data",
+          "description": "Data del rifornimento/ricarica (predefinito oggi)."
+        },
+        "station": {
+          "name": "Distributore",
+          "description": "Distributore o gestore."
+        },
+        "note": {
+          "name": "Nota",
+          "description": "Testo libero."
+        }
+      }
+    },
+    "delete_entry": {
+      "name": "Elimina voce",
+      "description": "Elimina una voce dal registro.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Serve solo se segui più di un'auto."
+        },
+        "entry_id": {
+          "name": "ID voce",
+          "description": "ID della voce del registro."
+        }
+      }
+    },
+    "scan_receipt": {
+      "name": "Leggi scontrino",
+      "description": "Legge uno scontrino di carburante o ricarica da una foto con AI Task.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Serve solo se segui più di un'auto."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto dello scontrino."
+        },
+        "auto_add": {
+          "name": "Aggiungi in automatico",
+          "description": "Aggiunge la voce se lo scontrino è stato letto completamente."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "Costi Auto: auto non trovata."
+    },
+    "entry_required": {
+      "message": "Costi Auto: ci sono più auto, scegli quale."
+    },
+    "log_entry_not_found": {
+      "message": "Costi Auto: voce del registro non trovata."
+    }
+  }
+}

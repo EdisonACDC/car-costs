@@ -1,0 +1,290 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Dein neues Auto",
+        "description": "Kaufdaten. Die Investition ist Kaufpreis + Nebenkosten − Verkaufserlös des alten Autos.",
+        "data": {
+          "name": "Name des neuen Autos",
+          "purchase_price": "Kaufpreis",
+          "extra_investment": "Nebenkosten (Wallbox, Zulassung…)",
+          "start_date": "Startdatum (Übergabe)",
+          "start_odometer": "Km-Stand bei Übergabe (0 = erster Sensorwert)",
+          "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)"
+        }
+      },
+      "energy": {
+        "title": "Strom und Belege",
+        "description": "Optional: der Energiesensor der Steckdose/Wallbox zum Laden zu Hause und die AI-Task-Entität, die Belegfotos liest.",
+        "data": {
+          "electricity_price": "Strompreis zu Hause",
+          "electricity_price_entity": "Strompreis-Sensor (optional, ersetzt den Preis)",
+          "home_energy_entity": "Energiesensor Laden zu Hause (kWh)",
+          "ai_task_entity": "AI Task für Belegfotos"
+        }
+      },
+      "reference": {
+        "title": "Vergleichsauto",
+        "description": "Das alte Auto: für jeden gefahrenen km berechnet Car Costs, was es an Kraftstoff gekostet hätte.",
+        "data": {
+          "ref_name": "Name des alten Autos",
+          "ref_fuel": "Kraftstoff",
+          "ref_consumption": "Realer Verbrauch",
+          "ref_fuel_price": "Kraftstoffpreis",
+          "ref_fuel_price_entity": "Kraftstoffpreis-Sensor (z. B. Tankerkönig, optional)",
+          "old_car_sale_price": "Verkaufspreis des alten Autos"
+        }
+      },
+      "fixed": {
+        "title": "Jährliche Fixkosten",
+        "description": "Kfz-Steuer, Versicherung und Wartung pro Jahr für beide Autos. 0 lassen, wenn nicht verglichen werden soll.",
+        "data": {
+          "new_tax": "Neues Auto: Kfz-Steuer / Jahr",
+          "new_insurance": "Neues Auto: Versicherung / Jahr",
+          "new_maintenance": "Neues Auto: Wartung / Jahr",
+          "ref_tax": "Altes Auto: Kfz-Steuer / Jahr",
+          "ref_insurance": "Altes Auto: Versicherung / Jahr",
+          "ref_maintenance": "Altes Auto: Wartung / Jahr"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Dein neues Auto",
+        "description": "Kaufdaten. Die Investition ist Kaufpreis + Nebenkosten − Verkaufserlös des alten Autos.",
+        "data": {
+          "name": "Name des neuen Autos",
+          "purchase_price": "Kaufpreis",
+          "extra_investment": "Nebenkosten (Wallbox, Zulassung…)",
+          "start_date": "Startdatum (Übergabe)",
+          "start_odometer": "Km-Stand bei Übergabe (0 = erster Sensorwert)",
+          "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)"
+        }
+      },
+      "energy": {
+        "title": "Strom und Belege",
+        "description": "Optional: der Energiesensor der Steckdose/Wallbox zum Laden zu Hause und die AI-Task-Entität, die Belegfotos liest.",
+        "data": {
+          "electricity_price": "Strompreis zu Hause",
+          "electricity_price_entity": "Strompreis-Sensor (optional, ersetzt den Preis)",
+          "home_energy_entity": "Energiesensor Laden zu Hause (kWh)",
+          "ai_task_entity": "AI Task für Belegfotos"
+        }
+      },
+      "reference": {
+        "title": "Vergleichsauto",
+        "description": "Das alte Auto: für jeden gefahrenen km berechnet Car Costs, was es an Kraftstoff gekostet hätte.",
+        "data": {
+          "ref_name": "Name des alten Autos",
+          "ref_fuel": "Kraftstoff",
+          "ref_consumption": "Realer Verbrauch",
+          "ref_fuel_price": "Kraftstoffpreis",
+          "ref_fuel_price_entity": "Kraftstoffpreis-Sensor (z. B. Tankerkönig, optional)",
+          "old_car_sale_price": "Verkaufspreis des alten Autos"
+        }
+      },
+      "fixed": {
+        "title": "Jährliche Fixkosten",
+        "description": "Kfz-Steuer, Versicherung und Wartung pro Jahr für beide Autos. 0 lassen, wenn nicht verglichen werden soll.",
+        "data": {
+          "new_tax": "Neues Auto: Kfz-Steuer / Jahr",
+          "new_insurance": "Neues Auto: Versicherung / Jahr",
+          "new_maintenance": "Neues Auto: Wartung / Jahr",
+          "ref_tax": "Altes Auto: Kfz-Steuer / Jahr",
+          "ref_insurance": "Altes Auto: Versicherung / Jahr",
+          "ref_maintenance": "Altes Auto: Wartung / Jahr"
+        }
+      }
+    }
+  },
+  "selector": {
+    "fuel": {
+      "options": {
+        "diesel": "Diesel",
+        "petrol": "Benzin",
+        "lpg": "Autogas",
+        "cng": "Erdgas"
+      }
+    },
+    "location": {
+      "options": {
+        "home": "Zu Hause",
+        "public": "Öffentlich / Beleg"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "km_driven": {
+        "name": "Gefahrene km"
+      },
+      "fuel_liters": {
+        "name": "Liter Kraftstoff"
+      },
+      "electricity_kwh": {
+        "name": "Strom kWh"
+      },
+      "fuel_cost": {
+        "name": "Kraftstoffkosten"
+      },
+      "electricity_cost": {
+        "name": "Stromkosten"
+      },
+      "energy_cost": {
+        "name": "Energiekosten"
+      },
+      "reference_cost": {
+        "name": "Kosten altes Auto (gleiche km)"
+      },
+      "energy_savings": {
+        "name": "Ersparnis Energie"
+      },
+      "fixed_cost_savings": {
+        "name": "Ersparnis Fixkosten"
+      },
+      "total_savings": {
+        "name": "Ersparnis gesamt"
+      },
+      "savings_per_month": {
+        "name": "Ersparnis pro Monat"
+      },
+      "investment": {
+        "name": "Investition"
+      },
+      "cost_per_100km": {
+        "name": "Kosten pro 100 km"
+      },
+      "reference_cost_per_100km": {
+        "name": "Altes Auto pro 100 km"
+      },
+      "avg_fuel_consumption": {
+        "name": "Durchschnittsverbrauch"
+      },
+      "amortization": {
+        "name": "Amortisiert"
+      },
+      "break_even_date": {
+        "name": "Break-even-Datum"
+      }
+    }
+  },
+  "services": {
+    "add_refuel": {
+      "name": "Tankvorgang hinzufügen",
+      "description": "Einen Tankvorgang des neuen Autos erfassen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Nur nötig, wenn mehrere Autos erfasst werden."
+        },
+        "liters": {
+          "name": "Liter",
+          "description": "Liter Kraftstoff."
+        },
+        "total_cost": {
+          "name": "Gesamtkosten",
+          "description": "Bezahlter Betrag in Euro."
+        },
+        "odometer": {
+          "name": "Km-Stand",
+          "description": "Kilometerstand (optional)."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Datum (Standard heute)."
+        },
+        "station": {
+          "name": "Tankstelle",
+          "description": "Tankstelle oder Anbieter."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Freitext."
+        }
+      }
+    },
+    "add_charge": {
+      "name": "Ladevorgang hinzufügen",
+      "description": "Einen Ladevorgang erfassen. Ohne Kosten wird zu Hause der Strompreis verwendet.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Nur nötig, wenn mehrere Autos erfasst werden."
+        },
+        "kwh": {
+          "name": "kWh",
+          "description": "Geladene Energie."
+        },
+        "total_cost": {
+          "name": "Gesamtkosten",
+          "description": "Bezahlter Betrag in Euro."
+        },
+        "location": {
+          "name": "Ort",
+          "description": "Wo geladen wurde."
+        },
+        "odometer": {
+          "name": "Km-Stand",
+          "description": "Kilometerstand (optional)."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Datum (Standard heute)."
+        },
+        "station": {
+          "name": "Tankstelle",
+          "description": "Tankstelle oder Anbieter."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Freitext."
+        }
+      }
+    },
+    "delete_entry": {
+      "name": "Eintrag löschen",
+      "description": "Einen Eintrag aus dem Protokoll löschen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Nur nötig, wenn mehrere Autos erfasst werden."
+        },
+        "entry_id": {
+          "name": "Eintrags-ID",
+          "description": "ID des Eintrags."
+        }
+      }
+    },
+    "scan_receipt": {
+      "name": "Beleg scannen",
+      "description": "Einen Tank- oder Ladebeleg per Foto mit AI Task lesen.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Nur nötig, wenn mehrere Autos erfasst werden."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto des Belegs."
+        },
+        "auto_add": {
+          "name": "Automatisch hinzufügen",
+          "description": "Eintrag hinzufügen, wenn der Beleg vollständig gelesen wurde."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "entry_not_found": {
+      "message": "Car Costs: Auto nicht gefunden."
+    },
+    "entry_required": {
+      "message": "Car Costs: mehrere Autos eingerichtet, bitte eines wählen."
+    },
+    "log_entry_not_found": {
+      "message": "Car Costs: Eintrag nicht gefunden."
+    }
+  }
+}

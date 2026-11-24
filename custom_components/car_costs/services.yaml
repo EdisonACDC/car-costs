@@ -1,0 +1,85 @@
+add_refuel:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: car_costs
+    liters:
+      required: true
+      selector:
+        number: {min: 0.1, max: 500, step: 0.01, unit_of_measurement: L, mode: box}
+    total_cost:
+      required: true
+      selector:
+        number: {min: 0, max: 2000, step: 0.01, unit_of_measurement: "€", mode: box}
+    odometer:
+      selector:
+        number: {min: 0, max: 2000000, step: 1, unit_of_measurement: km, mode: box}
+    date:
+      selector:
+        date:
+    station:
+      selector:
+        text:
+    note:
+      selector:
+        text:
+
+add_charge:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: car_costs
+    kwh:
+      required: true
+      selector:
+        number: {min: 0.01, max: 500, step: 0.01, unit_of_measurement: kWh, mode: box}
+    total_cost:
+      selector:
+        number: {min: 0, max: 2000, step: 0.01, unit_of_measurement: "€", mode: box}
+    location:
+      default: public
+      selector:
+        select:
+          translation_key: location
+          options: [home, public]
+    odometer:
+      selector:
+        number: {min: 0, max: 2000000, step: 1, unit_of_measurement: km, mode: box}
+    date:
+      selector:
+        date:
+    station:
+      selector:
+        text:
+    note:
+      selector:
+        text:
+
+delete_entry:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: car_costs
+    entry_id:
+      required: true
+      selector:
+        text:
+
+scan_receipt:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: car_costs
+    image:
+      required: true
+      selector:
+        media:
+          accept: ["image/*", "application/pdf"]
+    auto_add:
+      default: true
+      selector:
+        boolean:
