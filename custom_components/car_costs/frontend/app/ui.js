@@ -15,7 +15,7 @@ export function toast(msg) {
   el.textContent = msg;
   el.classList.add("in");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("in"), 3200);
+  toastTimer = setTimeout(() => el.classList.remove("in"), 2500);
 }
 
 // ------------------------------------------------------------------ sheets

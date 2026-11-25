@@ -152,7 +152,7 @@ function overviewHtml() {
       <div class="sub">vs ${esc(ov.ref_name)} · ${esc(t("since", { date: dateLabel(ov.start_date) }))} · ${esc(days(s.days))}</div></div><div class="avatar glass">🚙</div></header>
     <section class="hero glass">
       <div class="ring"><svg width="132" height="132" viewBox="0 0 132 132"><defs><linearGradient id="rg" x1="0" x2="1"><stop offset="0" stop-color="#5ef0a0"/><stop offset="1" stop-color="#7ee8fa"/></linearGradient></defs>
-        <circle cx="66" cy="66" r="56" fill="none" stroke="rgba(255,255,255,.16)" stroke-width="14"/>
+        <circle cx="66" cy="66" r="56" fill="none" class="ring-track" stroke-width="14"/>
         <circle class="fg" cx="66" cy="66" r="56" fill="none" stroke="url(#rg)" stroke-width="14" stroke-linecap="round" stroke-dasharray="${RING.toFixed(1)}" stroke-dashoffset="${RING.toFixed(1)}" data-off="${(RING * (1 - ringPct / 100)).toFixed(1)}"/></svg>
         <div class="c"><b>${s.amortization == null ? "–" : pct(s.amortization)}</b><span>${esc(t("repaid"))}</span></div></div>
       <div><div class="lbl">${esc(t("saved"))}</div><div class="big ${cls(s.total_savings)}">${signedEur(s.total_savings)}</div>
@@ -206,8 +206,12 @@ function chartsHtml() {
   const chip = (n, label) => `<button class="chip ${state.range === n ? "on" : ""}" data-range="${n}">${esc(label)}</button>`;
   const dot = (c) => `<i style="background:${c}"></i>`;
   const pts = (key) => daily.map((p) => ({ t: parseDay(p.date), y: p[key] }));
+  const saved = ov.summary.total_savings, inv = hist.investment;
+  const bestSaved = Math.max(saved, ...daily.map((p) => p.total_savings));
+  // The break-even line only appears once the savings are a visible part of the investment.
+  const showGoal = inv > 0 && bestSaved >= inv * 0.25;
   const cum = lineChart([{ points: pts("total_savings"), color: "var(--pos)", area: true }], {
-    goal: hist.investment > 0 ? { y: hist.investment, label: t("ch_goal", { amount: eur(hist.investment) }) } : null,
+    goal: showGoal ? { y: inv, label: t("ch_goal", { amount: eur(inv) }) } : null,
     yFmt: (v) => (Math.abs(v) >= 1000 ? `${num(v / 1000, 1)}k` : num(v, 0)),
   });
   const per = daily.filter((p) => p.km >= 50);
@@ -228,7 +232,7 @@ function chartsHtml() {
     <div class="chips">${chip(3, t("range_3"))}${chip(12, t("range_12"))}${chip(0, t("range_all"))}</div>
     ${card(t("ch_spend"), months.length ? barsChart(months, { a: { key: "reference_cost", label: ov.ref_name, fill: "rgba(255,138,128,.55)" }, b: { key: "energy_cost", label: ov.title, fill: "url(#new)" } }) : none,
       `<div class="legend"><span>${dot("rgba(255,138,128,.8)")}${esc(ov.ref_name)}</span><span>${dot("var(--pos)")}${esc(ov.title)}</span></div>`)}
-    ${card(t("ch_cum"), cum || none)}
+    ${card(t("ch_cum"), (inv > 0 ? `<div class="progress-line">${esc(t("ch_progress", { x: eur(saved), y: eur(inv), p: num((saved / inv) * 100, 0) }))}</div>` : "") + (cum || none))}
     ${card(t("ch_per100"), per.length > 1 ? per100 : none,
       `<div class="legend"><span>${dot("var(--neg)")}${esc(ov.ref_name)}</span><span>${dot("var(--pos)")}${esc(ov.title)}</span></div>`)}
     ${card(t("ch_split"), total > 0 ? `<div class="donut-wrap">${donut(split, eur(total), t("total"))}

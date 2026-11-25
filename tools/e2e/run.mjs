@@ -185,6 +185,10 @@ for (const scheme of ["light", "dark"]) {
   ok(await page.locator(".field.missing").count() === 1, "missing amount is marked red");
   await page.click("#save");
   ok(await page.locator(".field.bad").count() >= 1, "saving with a missing amount is refused");
+  await wait(400);
+  await shot(page, S("11-scan-missing-toast"));
+  const tb = await page.locator("#toast").evaluate((e) => { const r = e.getBoundingClientRect(), cs = getComputedStyle(e); return { top: r.top, bottom: r.bottom, bg: cs.backgroundColor, n: document.querySelectorAll("#toast").length }; });
+  ok(tb.top >= 0 && tb.bottom < 90 && /^rgb\(/.test(tb.bg) && tb.n === 1, `toast is solid and sits at the top (top ${Math.round(tb.top)}, ${tb.bg})`);
   await page.keyboard.press("Escape");
   fake.station.aiResult = null;
 
@@ -218,6 +222,8 @@ for (const scheme of ["light", "dark"]) {
   await page.fill("#f_km", "12480");
   await page.click("#save");
   await page.waitForSelector("#toast.in");
+  await wait(350);
+  await shot(page, S("13-form-refuel-saved"));
   const r = fake.calls.findLast((c) => c.service === "add_refuel");
   ok(r.data.liters === 31.5 && r.data.total_cost === 55.1 && r.data.odometer === 12480, "comma and dot both accepted; km optional");
   await settle(page, 400);

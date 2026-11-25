@@ -318,3 +318,38 @@ async def test_new_web_app_files_are_served(hass: HomeAssistant, hass_client_no_
               "sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png",
               "apple-touch-icon.png", "splash/splash-1170x2532.png"):
         assert (await anon.get(f"/car_costs_static/app/{f}")).status == 200, f
+
+
+async def test_saved_photos_in_the_same_second_do_not_collide(hass: HomeAssistant, tmp_path) -> None:
+    from custom_components.car_costs.receipt import async_save_image
+
+    _media(tmp_path, hass)
+    a, _ = await async_save_image(hass, b"one", "a.jpg", "abcdef123")
+    b, _ = await async_save_image(hass, b"two", "a.jpg", "abcdef123")
+    assert a != b
+    assert len(list((tmp_path / "car_costs").iterdir())) == 2
+
+
+async def test_midnight_deletes_old_orphan_photos(hass: HomeAssistant, tmp_path) -> None:
+    import os
+    import time
+
+    _media(tmp_path, hass)
+    entry = await _setup(hass)
+    used = _photo(tmp_path, "used.jpg")
+    old_orphan = _photo(tmp_path, "old.jpg")
+    new_orphan = _photo(tmp_path, "new.jpg")
+    await hass.services.async_call(
+        DOMAIN, "add_refuel", {"liters": 10, "total_cost": 18, "image": _id("used.jpg")}, blocking=True
+    )
+    long_ago = time.time() - 2 * 86400
+    for p in (used, old_orphan):
+        os.utime(p, (long_ago, long_ago))
+
+    midnight = dt_util.now().replace(hour=0, minute=0, second=5, microsecond=0) + timedelta(days=1)
+    async_fire_time_changed(hass, midnight)
+    await hass.async_block_till_done()
+    assert used.exists()  # linked to an entry
+    assert new_orphan.exists()  # younger than a day
+    assert not old_orphan.exists()
+    assert entry.runtime_data.data["log"][0]["image"] == _id("used.jpg")

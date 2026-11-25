@@ -33,7 +33,8 @@ export function lineChart(series, { height = 150, goal = null, yFmt = (v) => num
   const all = series.flatMap((s) => s.points);
   if (all.length < 2) return "";
   const t0 = Math.min(...all.map((p) => +p.t)), t1 = Math.max(...all.map((p) => +p.t));
-  let lo = Math.min(0, ...all.map((p) => p.y)), hi = Math.max(...all.map((p) => p.y), goal ? goal.y : -Infinity);
+  // Scale on the data (zero always visible); the goal only counts when it is drawn.
+  let lo = Math.min(0, ...all.map((p) => p.y)), hi = Math.max(0, ...all.map((p) => p.y), goal ? goal.y : -Infinity);
   if (hi <= lo) hi = lo + 1;
   const L = 34, R = 8, T = 10, B = 20, h = height;
   const x = (t) => L + ((+t - t0) / Math.max(1, t1 - t0)) * (W - L - R);

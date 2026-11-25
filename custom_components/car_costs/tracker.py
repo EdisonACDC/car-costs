@@ -49,7 +49,9 @@ from .const import (
     LOCATION_HOME,
     STORAGE_VERSION,
 )
-from .receipt import image_path
+from .receipt import image_path, media_dir
+
+ORPHAN_MAX_AGE = timedelta(days=1)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -228,6 +230,23 @@ class CarCostTracker:
         self.snapshot((now - timedelta(days=1)).date())
         self._save()
         self._notify()
+        self.hass.async_create_task(self.async_clean_orphan_images())
+
+    async def async_clean_orphan_images(self) -> None:
+        """Delete receipt photos in <media>/car_costs used by no entry and older than a day."""
+        used: set[Path] = set()
+        for config_entry in self.hass.config_entries.async_entries(DOMAIN):
+            tracker = getattr(config_entry, "runtime_data", None)
+            if tracker is None:
+                # A car is not loaded: its photos are unknown, so delete nothing.
+                return
+            for item in tracker.data["log"]:
+                path = image_path(self.hass, item.get("image"))
+                if path is not None:
+                    used.add(path)
+        _, folder = media_dir(self.hass)
+        cutoff = (dt_util.utcnow() - ORPHAN_MAX_AGE).timestamp()
+        await self.hass.async_add_executor_job(_delete_orphans, folder, used, cutoff)
 
     @callback
     def _on_state_change(self, event: Event[EventStateChangedData]) -> None:
@@ -629,6 +648,17 @@ def _unlink(path: Path) -> None:
         path.unlink(missing_ok=True)
     except OSError as err:
         _LOGGER.warning("Could not delete %s: %s", path, err)
+
+
+def _delete_orphans(folder: Path, used: set[Path], cutoff: float) -> None:
+    if not folder.is_dir():
+        return
+    for path in folder.iterdir():
+        try:
+            if path.is_file() and path.resolve() not in used and path.stat().st_mtime < cutoff:
+                _unlink(path)
+        except OSError as err:
+            _LOGGER.warning("Could not check %s: %s", path, err)
 
 
 def _month_range(first: str, last: str) -> list[str]:

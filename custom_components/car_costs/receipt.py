@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 from typing import Any
 from urllib.parse import unquote
+import uuid
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -92,7 +93,8 @@ async def async_save_image(
     if suffix not in (".jpg", ".jpeg", ".png", ".webp", ".heic", ".pdf"):
         suffix = ".jpg"
     name = _SAFE.sub(
-        "_", f"{dt_util.now().strftime('%Y%m%d_%H%M%S')}_{entry_id[:6]}{suffix}"
+        "_",
+        f"{dt_util.now().strftime('%Y%m%d_%H%M%S')}_{entry_id[:6]}_{uuid.uuid4().hex[:6]}{suffix}",
     )
 
     def _write() -> None:
