@@ -24,6 +24,9 @@ add_refuel:
     note:
       selector:
         text:
+    image:
+      selector:
+        text:
 
 add_charge:
   fields:
@@ -56,6 +59,9 @@ add_charge:
     note:
       selector:
         text:
+    image:
+      selector:
+        text:
 
 delete_entry:
   fields:
@@ -65,6 +71,46 @@ delete_entry:
           integration: car_costs
     entry_id:
       required: true
+      selector:
+        text:
+
+update_entry:
+  fields:
+    config_entry_id:
+      selector:
+        config_entry:
+          integration: car_costs
+    entry_id:
+      required: true
+      selector:
+        text:
+    liters:
+      selector:
+        number: {min: 0.1, max: 500, step: 0.01, unit_of_measurement: L, mode: box}
+    kwh:
+      selector:
+        number: {min: 0.01, max: 500, step: 0.01, unit_of_measurement: kWh, mode: box}
+    total_cost:
+      selector:
+        number: {min: 0, max: 2000, step: 0.01, unit_of_measurement: "€", mode: box}
+    location:
+      selector:
+        select:
+          translation_key: location
+          options: [home, public]
+    odometer:
+      selector:
+        number: {min: 0, max: 2000000, step: 1, unit_of_measurement: km, mode: box}
+    date:
+      selector:
+        date:
+    station:
+      selector:
+        text:
+    note:
+      selector:
+        text:
+    image:
       selector:
         text:
 

@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 DOMAIN = "car_costs"
-VERSION = "0.2.0"
+VERSION = "0.3.0b1"
 
 STORAGE_VERSION = 1
+
+# One snapshot per day, kept for five years.
+HISTORY_MAX_DAYS = 5 * 366
 
 # --- new car -------------------------------------------------------------
 CONF_NAME = "name"
@@ -18,6 +21,7 @@ CONF_HOME_ENERGY_ENTITY = "home_energy_entity"
 CONF_ELECTRICITY_PRICE = "electricity_price"
 CONF_ELECTRICITY_PRICE_ENTITY = "electricity_price_entity"
 CONF_AI_TASK_ENTITY = "ai_task_entity"
+CONF_EV_CONSUMPTION = "ev_consumption"
 
 # --- reference (old) car -------------------------------------------------
 CONF_REF_NAME = "ref_name"
@@ -69,6 +73,7 @@ SERVICE_ADD_REFUEL = "add_refuel"
 SERVICE_ADD_CHARGE = "add_charge"
 SERVICE_DELETE_ENTRY = "delete_entry"
 SERVICE_SCAN_RECEIPT = "scan_receipt"
+SERVICE_UPDATE_ENTRY = "update_entry"
 
 ATTR_CONFIG_ENTRY_ID = "config_entry_id"
 ATTR_LITERS = "liters"

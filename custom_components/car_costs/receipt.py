@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 import re
 from typing import Any
+from urllib.parse import unquote
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -54,6 +55,32 @@ def media_dir(hass: HomeAssistant) -> tuple[str, Path]:
     dirs = hass.config.media_dirs or {"local": hass.config.path("media")}
     key = "local" if "local" in dirs else next(iter(dirs))
     return key, Path(dirs[key]) / MEDIA_SUBDIR
+
+
+MEDIA_PREFIX = "media-source://media_source/"
+MIME_BY_SUFFIX = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".heic": "image/heic",
+    ".pdf": "application/pdf",
+}
+
+
+def image_path(hass: HomeAssistant, media_id: Any) -> Path | None:
+    """Local file of a stored receipt photo, only if inside <media>/car_costs."""
+    if not isinstance(media_id, str) or not media_id.startswith(MEDIA_PREFIX):
+        return None
+    key, _, rel = media_id[len(MEDIA_PREFIX):].partition("/")
+    dirs = hass.config.media_dirs or {"local": hass.config.path("media")}
+    if key not in dirs or not rel:
+        return None
+    folder = (Path(dirs[key]) / MEDIA_SUBDIR).resolve()
+    candidate = (Path(dirs[key]) / unquote(rel)).resolve()
+    if candidate.parent != folder:
+        return None
+    return candidate
 
 
 async def async_save_image(

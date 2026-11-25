@@ -22,6 +22,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .const import (
@@ -39,6 +40,7 @@ from .const import (
     ATTR_TOTAL_COST,
     CARD_FILENAME,
     CONF_AI_TASK_ENTITY,
+    CONF_EV_CONSUMPTION,
     DOMAIN,
     EVENT_RECEIPT_SCANNED,
     FRONTEND_URL,
@@ -49,10 +51,12 @@ from .const import (
     SERVICE_ADD_REFUEL,
     SERVICE_DELETE_ENTRY,
     SERVICE_SCAN_RECEIPT,
+    SERVICE_UPDATE_ENTRY,
     SOURCE_RECEIPT,
+    STORAGE_VERSION,
     VERSION,
 )
-from .receipt import async_read_receipt, async_save_image
+from .receipt import MIME_BY_SUFFIX, async_read_receipt, async_save_image, image_path
 from .tracker import CarCostTracker, parse_day
 
 _LOGGER = logging.getLogger(__name__)
@@ -69,6 +73,7 @@ _COMMON = {
     vol.Optional(ATTR_DATE): cv.string,
     vol.Optional(ATTR_STATION): cv.string,
     vol.Optional(ATTR_NOTE): cv.string,
+    vol.Optional(ATTR_IMAGE): cv.string,
 }
 REFUEL_SCHEMA = vol.Schema(
     {
@@ -90,6 +95,22 @@ CHARGE_SCHEMA = vol.Schema(
     }
 )
 DELETE_SCHEMA = vol.Schema({**_BASE, vol.Required(ATTR_ENTRY_ID): cv.string})
+_NULLABLE_TEXT = vol.Any(None, cv.string)
+UPDATE_SCHEMA = vol.Schema(
+    {
+        **_BASE,
+        vol.Required(ATTR_ENTRY_ID): cv.string,
+        vol.Optional(ATTR_LITERS): vol.All(vol.Coerce(float), vol.Range(min=0.1)),
+        vol.Optional(ATTR_KWH): vol.All(vol.Coerce(float), vol.Range(min=0.01)),
+        vol.Optional(ATTR_TOTAL_COST): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional(ATTR_LOCATION): vol.In([LOCATION_HOME, LOCATION_PUBLIC]),
+        vol.Optional(ATTR_ODOMETER): vol.Any(None, vol.Coerce(float)),
+        vol.Optional(ATTR_DATE): cv.string,
+        vol.Optional(ATTR_STATION): _NULLABLE_TEXT,
+        vol.Optional(ATTR_NOTE): _NULLABLE_TEXT,
+        vol.Optional(ATTR_IMAGE): _NULLABLE_TEXT,
+    }
+)
 SCAN_SCHEMA = vol.Schema(
     {
         **_BASE,
@@ -111,6 +132,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     websocket_api.async_register_command(hass, ws_entries)
     hass.http.register_view(ReceiptUploadView())
     hass.http.register_view(SummaryView())
+    hass.http.register_view(HistoryView())
+    hass.http.register_view(ImageView())
     hass.http.register_view(AppRedirectView())
     await hass.http.async_register_static_paths(
         [
@@ -130,6 +153,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: CarCostsConfigEntry) -> 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """The car was deleted: remove its storage file too."""
+    await Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}").async_remove()
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: CarCostsConfigEntry) -> None:
@@ -187,6 +215,7 @@ async def async_scan(
                 station=result["station"],
                 note=result["fuel"],
                 source=SOURCE_RECEIPT,
+                image=media_id,
             )
         else:
             added = tracker.add_charge(
@@ -196,8 +225,8 @@ async def async_scan(
                 day=result["date"],
                 station=result["station"],
                 source=SOURCE_RECEIPT,
+                image=media_id,
             )
-        added["image"] = media_id
     hass.bus.async_fire(
         EVENT_RECEIPT_SCANNED,
         {"config_entry_id": tracker.entry.entry_id, "result": result, "added": bool(added)},
@@ -216,6 +245,7 @@ def _register_services(hass: HomeAssistant) -> None:
             day=parse_day(d.get(ATTR_DATE)),
             station=d.get(ATTR_STATION),
             note=d.get(ATTR_NOTE),
+            image=d.get(ATTR_IMAGE),
         )
         return {"entry": item}
 
@@ -229,7 +259,22 @@ def _register_services(hass: HomeAssistant) -> None:
             day=parse_day(d.get(ATTR_DATE)),
             station=d.get(ATTR_STATION),
             note=d.get(ATTR_NOTE),
+            image=d.get(ATTR_IMAGE),
         )
+        return {"entry": item}
+
+    async def update_entry(call: ServiceCall) -> ServiceResponse:
+        tracker = get_tracker(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
+        fields = {
+            k: v
+            for k, v in call.data.items()
+            if k not in (ATTR_CONFIG_ENTRY_ID, ATTR_ENTRY_ID)
+        }
+        item = tracker.update(call.data[ATTR_ENTRY_ID], fields)
+        if item is None:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="log_entry_not_found"
+            )
         return {"entry": item}
 
     async def delete_entry(call: ServiceCall) -> None:
@@ -247,7 +292,7 @@ def _register_services(hass: HomeAssistant) -> None:
             mime = image.get("media_content_type") or "image/jpeg"
         else:
             media_id, mime = image, "image/jpeg"
-        if media_id.startswith("/"):  # a file path on the HA host
+        if Path(media_id).is_absolute():  # a file path on the HA host
             path = Path(media_id)
             if not hass.config.is_allowed_path(str(path)) or not path.is_file():
                 raise ServiceValidationError(f"File not allowed or missing: {media_id}")
@@ -264,6 +309,9 @@ def _register_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_ADD_CHARGE, add_charge, CHARGE_SCHEMA, SupportsResponse.OPTIONAL
     )
     hass.services.async_register(DOMAIN, SERVICE_DELETE_ENTRY, delete_entry, DELETE_SCHEMA)
+    hass.services.async_register(
+        DOMAIN, SERVICE_UPDATE_ENTRY, update_entry, UPDATE_SCHEMA, SupportsResponse.OPTIONAL
+    )
     hass.services.async_register(
         DOMAIN, SERVICE_SCAN_RECEIPT, scan_receipt, SCAN_SCHEMA, SupportsResponse.OPTIONAL
     )
@@ -294,15 +342,27 @@ def overview(tracker: CarCostTracker, limit: int = 50) -> dict[str, Any]:
     """Everything the card and the web app show."""
     s = tracker.summary()
     summary = {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in vars(s).items()}
+    entries = [{**e, "has_image": bool(e.get("image"))} for e in tracker.recent(limit)]
+    last_station = next(
+        (e["station"] for e in reversed(tracker.data["log"]) if e["kind"] == KIND_REFUEL and e.get("station")),
+        None,
+    )
     return {
         "config_entry_id": tracker.entry.entry_id,
         "title": tracker.entry.title,
+        "version": VERSION,
+        "start_date": tracker.start_date.isoformat(),
         "ref_name": tracker.opt("ref_name"),
+        "ref_fuel": tracker.opt("ref_fuel"),
+        "ref_consumption": tracker.opt("ref_consumption"),
         "electricity_price": tracker.electricity_price,
         "ref_fuel_price": tracker.ref_fuel_price,
+        "ev_consumption": tracker.opt(CONF_EV_CONSUMPTION),
         "has_home_meter": bool(tracker.opt("home_energy_entity")),
+        "ai_task_available": tracker.hass.services.has_service("ai_task", "generate_data"),
+        "last_station": last_station,
         "summary": summary,
-        "entries": tracker.recent(limit),
+        "entries": entries,
     }
 
 
@@ -324,6 +384,57 @@ class SummaryView(HomeAssistantView):
         except ValueError:
             limit = 15
         return self.json(overview(tracker, limit))
+
+
+class HistoryView(HomeAssistantView):
+    """GET monthly aggregates and the daily series for the charts."""
+
+    url = "/api/car_costs/history"
+    name = "api:car_costs:history"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        hass: HomeAssistant = request.app["hass"]
+        try:
+            tracker = get_tracker(hass, request.query.get("config_entry_id"))
+        except ServiceValidationError:
+            return self.json_message("Car Costs entry not found", 404)
+        try:
+            months = max(0, min(120, int(request.query.get("months", 0))))
+        except ValueError:
+            months = 0
+        return self.json({"config_entry_id": tracker.entry.entry_id, **tracker.history(months)})
+
+
+class ImageView(HomeAssistantView):
+    """GET the receipt photo of a log entry (only files in <media>/car_costs)."""
+
+    url = "/api/car_costs/image/{entry_id}"
+    name = "api:car_costs:image"
+    requires_auth = True
+
+    async def get(self, request: web.Request, entry_id: str) -> web.Response:
+        hass: HomeAssistant = request.app["hass"]
+        item = None
+        for config_entry in hass.config_entries.async_loaded_entries(DOMAIN):
+            item = next(
+                (e for e in config_entry.runtime_data.data["log"] if e["id"] == entry_id),
+                None,
+            )
+            if item:
+                break
+        path = image_path(hass, item.get("image")) if item else None
+        if path is None:
+            return self.json_message("Not found", 404)
+        try:
+            body = await hass.async_add_executor_job(path.read_bytes)
+        except OSError:
+            return self.json_message("Not found", 404)
+        return web.Response(
+            body=body,
+            content_type=MIME_BY_SUFFIX.get(path.suffix.lower(), "image/jpeg"),
+            headers={"Cache-Control": "private, max-age=86400"},
+        )
 
 
 class AppRedirectView(HomeAssistantView):

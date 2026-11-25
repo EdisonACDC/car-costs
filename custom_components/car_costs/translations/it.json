@@ -20,6 +20,7 @@
           "electricity_price": "Prezzo corrente di casa",
           "electricity_price_entity": "Sensore prezzo corrente (facoltativo, sostituisce il prezzo)",
           "home_energy_entity": "Sensore energia ricarica a casa (kWh)",
+          "ev_consumption": "Consumo elettrico (kWh/100 km) – per stimare i km in elettrico, facoltativo",
           "ai_task_entity": "AI Task per le foto degli scontrini"
         }
       },
@@ -70,6 +71,7 @@
           "electricity_price": "Prezzo corrente di casa",
           "electricity_price_entity": "Sensore prezzo corrente (facoltativo, sostituisce il prezzo)",
           "home_energy_entity": "Sensore energia ricarica a casa (kWh)",
+          "ev_consumption": "Consumo elettrico (kWh/100 km) – per stimare i km in elettrico, facoltativo",
           "ai_task_entity": "AI Task per le foto degli scontrini"
         }
       },
@@ -202,6 +204,10 @@
         "note": {
           "name": "Nota",
           "description": "Testo libero."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto dello scontrino."
         }
       }
     },
@@ -240,12 +246,16 @@
         "note": {
           "name": "Nota",
           "description": "Testo libero."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto dello scontrino."
         }
       }
     },
     "delete_entry": {
       "name": "Elimina voce",
-      "description": "Elimina una voce dal registro.",
+      "description": "Elimina una voce dal registro (e la foto dello scontrino).",
       "fields": {
         "config_entry_id": {
           "name": "Auto",
@@ -254,6 +264,56 @@
         "entry_id": {
           "name": "ID voce",
           "description": "ID della voce del registro."
+        }
+      }
+    },
+    "update_entry": {
+      "name": "Modifica voce",
+      "description": "Cambia i campi di una voce del registro.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Serve solo se segui più di un'auto."
+        },
+        "entry_id": {
+          "name": "ID voce",
+          "description": "ID della voce del registro."
+        },
+        "liters": {
+          "name": "Litri",
+          "description": "Litri di carburante."
+        },
+        "kwh": {
+          "name": "kWh",
+          "description": "Energia caricata."
+        },
+        "total_cost": {
+          "name": "Costo totale",
+          "description": "Importo pagato in euro."
+        },
+        "location": {
+          "name": "Luogo",
+          "description": "Dove hai ricaricato."
+        },
+        "odometer": {
+          "name": "Km",
+          "description": "Km del contachilometri (facoltativo)."
+        },
+        "date": {
+          "name": "Data",
+          "description": "Data del rifornimento/ricarica (predefinito oggi)."
+        },
+        "station": {
+          "name": "Distributore",
+          "description": "Distributore o gestore."
+        },
+        "note": {
+          "name": "Nota",
+          "description": "Testo libero."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto dello scontrino."
         }
       }
     },

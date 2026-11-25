@@ -20,6 +20,7 @@
           "electricity_price": "Electricity price at home",
           "electricity_price_entity": "Electricity price sensor (optional, overrides the price)",
           "home_energy_entity": "Home charging energy sensor (kWh)",
+          "ev_consumption": "Electric consumption (kWh/100 km) – for the estimate of electric km, optional",
           "ai_task_entity": "AI Task for receipt photos"
         }
       },
@@ -70,6 +71,7 @@
           "electricity_price": "Electricity price at home",
           "electricity_price_entity": "Electricity price sensor (optional, overrides the price)",
           "home_energy_entity": "Home charging energy sensor (kWh)",
+          "ev_consumption": "Electric consumption (kWh/100 km) – for the estimate of electric km, optional",
           "ai_task_entity": "AI Task for receipt photos"
         }
       },
@@ -202,6 +204,10 @@
         "note": {
           "name": "Note",
           "description": "Free text."
+        },
+        "image": {
+          "name": "Photo",
+          "description": "Photo of the receipt."
         }
       }
     },
@@ -240,12 +246,16 @@
         "note": {
           "name": "Note",
           "description": "Free text."
+        },
+        "image": {
+          "name": "Photo",
+          "description": "Photo of the receipt."
         }
       }
     },
     "delete_entry": {
       "name": "Delete entry",
-      "description": "Delete an entry from the log.",
+      "description": "Delete an entry from the log (and its receipt photo).",
       "fields": {
         "config_entry_id": {
           "name": "Car",
@@ -254,6 +264,56 @@
         "entry_id": {
           "name": "Entry ID",
           "description": "ID of the log entry."
+        }
+      }
+    },
+    "update_entry": {
+      "name": "Edit entry",
+      "description": "Change the fields of an entry in the log.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Car",
+          "description": "Needed only if you track more than one car."
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "ID of the log entry."
+        },
+        "liters": {
+          "name": "Litres",
+          "description": "Litres of fuel."
+        },
+        "kwh": {
+          "name": "kWh",
+          "description": "Energy charged."
+        },
+        "total_cost": {
+          "name": "Total cost",
+          "description": "Amount paid in euro."
+        },
+        "location": {
+          "name": "Location",
+          "description": "Where you charged."
+        },
+        "odometer": {
+          "name": "Odometer",
+          "description": "Km on the odometer (optional)."
+        },
+        "date": {
+          "name": "Date",
+          "description": "Date of the refuel/charge (default today)."
+        },
+        "station": {
+          "name": "Station",
+          "description": "Station or operator."
+        },
+        "note": {
+          "name": "Note",
+          "description": "Free text."
+        },
+        "image": {
+          "name": "Photo",
+          "description": "Photo of the receipt."
         }
       }
     },

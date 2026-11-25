@@ -20,6 +20,7 @@
           "electricity_price": "Strompreis zu Hause",
           "electricity_price_entity": "Strompreis-Sensor (optional, ersetzt den Preis)",
           "home_energy_entity": "Energiesensor Laden zu Hause (kWh)",
+          "ev_consumption": "Stromverbrauch (kWh/100 km) – für die Schätzung der elektrischen km, optional",
           "ai_task_entity": "AI Task für Belegfotos"
         }
       },
@@ -70,6 +71,7 @@
           "electricity_price": "Strompreis zu Hause",
           "electricity_price_entity": "Strompreis-Sensor (optional, ersetzt den Preis)",
           "home_energy_entity": "Energiesensor Laden zu Hause (kWh)",
+          "ev_consumption": "Stromverbrauch (kWh/100 km) – für die Schätzung der elektrischen km, optional",
           "ai_task_entity": "AI Task für Belegfotos"
         }
       },
@@ -202,6 +204,10 @@
         "note": {
           "name": "Notiz",
           "description": "Freitext."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto des Belegs."
         }
       }
     },
@@ -240,12 +246,16 @@
         "note": {
           "name": "Notiz",
           "description": "Freitext."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto des Belegs."
         }
       }
     },
     "delete_entry": {
       "name": "Eintrag löschen",
-      "description": "Einen Eintrag aus dem Protokoll löschen.",
+      "description": "Einen Eintrag aus dem Protokoll löschen (samt Belegfoto).",
       "fields": {
         "config_entry_id": {
           "name": "Auto",
@@ -254,6 +264,56 @@
         "entry_id": {
           "name": "Eintrags-ID",
           "description": "ID des Eintrags."
+        }
+      }
+    },
+    "update_entry": {
+      "name": "Eintrag bearbeiten",
+      "description": "Felder eines Eintrags im Protokoll ändern.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Auto",
+          "description": "Nur nötig, wenn mehrere Autos erfasst werden."
+        },
+        "entry_id": {
+          "name": "Eintrags-ID",
+          "description": "ID des Eintrags."
+        },
+        "liters": {
+          "name": "Liter",
+          "description": "Liter Kraftstoff."
+        },
+        "kwh": {
+          "name": "kWh",
+          "description": "Geladene Energie."
+        },
+        "total_cost": {
+          "name": "Gesamtkosten",
+          "description": "Bezahlter Betrag in Euro."
+        },
+        "location": {
+          "name": "Ort",
+          "description": "Wo geladen wurde."
+        },
+        "odometer": {
+          "name": "Km-Stand",
+          "description": "Kilometerstand (optional)."
+        },
+        "date": {
+          "name": "Datum",
+          "description": "Datum (Standard heute)."
+        },
+        "station": {
+          "name": "Tankstelle",
+          "description": "Tankstelle oder Anbieter."
+        },
+        "note": {
+          "name": "Notiz",
+          "description": "Freitext."
+        },
+        "image": {
+          "name": "Foto",
+          "description": "Foto des Belegs."
         }
       }
     },

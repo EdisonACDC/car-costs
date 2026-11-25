@@ -19,6 +19,7 @@ T = {
             "odometer_entity": "Odometer sensor (e.g. MySkoda)", "electricity_price": "Electricity price at home",
             "electricity_price_entity": "Electricity price sensor (optional, overrides the price)",
             "home_energy_entity": "Home charging energy sensor (kWh)", "ai_task_entity": "AI Task for receipt photos",
+            "ev_consumption": "Electric consumption (kWh/100 km) – for the estimate of electric km, optional",
             "ref_name": "Name of the old car", "ref_fuel": "Fuel", "ref_consumption": "Real consumption",
             "ref_fuel_price": "Fuel price", "ref_fuel_price_entity": "Fuel price sensor (e.g. Tankerkönig, optional)",
             "old_car_sale_price": "Sale price of the old car",
@@ -40,7 +41,8 @@ T = {
         "services": {
             "add_refuel": ("Add refuel", "Log a refuel of the new car."),
             "add_charge": ("Add charge", "Log a charge. Without a cost, home charges use the home electricity price."),
-            "delete_entry": ("Delete entry", "Delete an entry from the log."),
+            "delete_entry": ("Delete entry", "Delete an entry from the log (and its receipt photo)."),
+            "update_entry": ("Edit entry", "Change the fields of an entry in the log."),
             "scan_receipt": ("Scan receipt", "Read a fuel or charging receipt from a photo with AI Task."),
         },
         "sfields": {
@@ -71,6 +73,7 @@ T = {
             "odometer_entity": "Sensore contachilometri (es. MySkoda)", "electricity_price": "Prezzo corrente di casa",
             "electricity_price_entity": "Sensore prezzo corrente (facoltativo, sostituisce il prezzo)",
             "home_energy_entity": "Sensore energia ricarica a casa (kWh)", "ai_task_entity": "AI Task per le foto degli scontrini",
+            "ev_consumption": "Consumo elettrico (kWh/100 km) – per stimare i km in elettrico, facoltativo",
             "ref_name": "Nome della vecchia auto", "ref_fuel": "Carburante", "ref_consumption": "Consumo reale",
             "ref_fuel_price": "Prezzo carburante", "ref_fuel_price_entity": "Sensore prezzo carburante (es. Tankerkönig, facoltativo)",
             "old_car_sale_price": "Prezzo di vendita della vecchia auto",
@@ -92,7 +95,8 @@ T = {
         "services": {
             "add_refuel": ("Aggiungi rifornimento", "Registra un rifornimento della nuova auto."),
             "add_charge": ("Aggiungi ricarica", "Registra una ricarica. Senza costo, a casa usa il prezzo della corrente di casa."),
-            "delete_entry": ("Elimina voce", "Elimina una voce dal registro."),
+            "delete_entry": ("Elimina voce", "Elimina una voce dal registro (e la foto dello scontrino)."),
+            "update_entry": ("Modifica voce", "Cambia i campi di una voce del registro."),
             "scan_receipt": ("Leggi scontrino", "Legge uno scontrino di carburante o ricarica da una foto con AI Task."),
         },
         "sfields": {
@@ -123,6 +127,7 @@ T = {
             "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)", "electricity_price": "Strompreis zu Hause",
             "electricity_price_entity": "Strompreis-Sensor (optional, ersetzt den Preis)",
             "home_energy_entity": "Energiesensor Laden zu Hause (kWh)", "ai_task_entity": "AI Task für Belegfotos",
+            "ev_consumption": "Stromverbrauch (kWh/100 km) – für die Schätzung der elektrischen km, optional",
             "ref_name": "Name des alten Autos", "ref_fuel": "Kraftstoff", "ref_consumption": "Realer Verbrauch",
             "ref_fuel_price": "Kraftstoffpreis", "ref_fuel_price_entity": "Kraftstoffpreis-Sensor (z. B. Tankerkönig, optional)",
             "old_car_sale_price": "Verkaufspreis des alten Autos",
@@ -144,7 +149,8 @@ T = {
         "services": {
             "add_refuel": ("Tankvorgang hinzufügen", "Einen Tankvorgang des neuen Autos erfassen."),
             "add_charge": ("Ladevorgang hinzufügen", "Einen Ladevorgang erfassen. Ohne Kosten wird zu Hause der Strompreis verwendet."),
-            "delete_entry": ("Eintrag löschen", "Einen Eintrag aus dem Protokoll löschen."),
+            "delete_entry": ("Eintrag löschen", "Einen Eintrag aus dem Protokoll löschen (samt Belegfoto)."),
+            "update_entry": ("Eintrag bearbeiten", "Felder eines Eintrags im Protokoll ändern."),
             "scan_receipt": ("Beleg scannen", "Einen Tank- oder Ladebeleg per Foto mit AI Task lesen."),
         },
         "sfields": {
@@ -166,14 +172,15 @@ T = {
 
 FIELDS_BY_STEP = {
     "user": ["name", "purchase_price", "extra_investment", "start_date", "start_odometer", "odometer_entity"],
-    "energy": ["electricity_price", "electricity_price_entity", "home_energy_entity", "ai_task_entity"],
+    "energy": ["electricity_price", "electricity_price_entity", "home_energy_entity", "ev_consumption", "ai_task_entity"],
     "reference": ["ref_name", "ref_fuel", "ref_consumption", "ref_fuel_price", "ref_fuel_price_entity", "old_car_sale_price"],
     "fixed": ["new_tax", "new_insurance", "new_maintenance", "ref_tax", "ref_insurance", "ref_maintenance"],
 }
 SERVICE_FIELDS = {
-    "add_refuel": ["config_entry_id", "liters", "total_cost", "odometer", "date", "station", "note"],
-    "add_charge": ["config_entry_id", "kwh", "total_cost", "location", "odometer", "date", "station", "note"],
+    "add_refuel": ["config_entry_id", "liters", "total_cost", "odometer", "date", "station", "note", "image"],
+    "add_charge": ["config_entry_id", "kwh", "total_cost", "location", "odometer", "date", "station", "note", "image"],
     "delete_entry": ["config_entry_id", "entry_id"],
+    "update_entry": ["config_entry_id", "entry_id", "liters", "kwh", "total_cost", "location", "odometer", "date", "station", "note", "image"],
     "scan_receipt": ["config_entry_id", "image", "auto_add"],
 }
 

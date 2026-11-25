@@ -15,6 +15,7 @@ from .const import (
     CONF_AI_TASK_ENTITY,
     CONF_ELECTRICITY_PRICE,
     CONF_ELECTRICITY_PRICE_ENTITY,
+    CONF_EV_CONSUMPTION,
     CONF_EXTRA_INVESTMENT,
     CONF_HOME_ENERGY_ENTITY,
     CONF_NAME,
@@ -92,6 +93,7 @@ def energy_schema(v: dict[str, Any]) -> dict:
         _opt(CONF_HOME_ENERGY_ENTITY, v): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="sensor", device_class="energy")
         ),
+        _opt(CONF_EV_CONSUMPTION, v): _number("kWh/100 km", 60, 0.1),
         _opt(CONF_AI_TASK_ENTITY, v): selector.EntitySelector(
             selector.EntitySelectorConfig(domain="ai_task")
         ),
@@ -131,7 +133,10 @@ class CarCostsConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self) -> None:
-        self._data: dict[str, Any] = {CONF_START_DATE: dt_util.now().date().isoformat()}
+        self._data: dict[str, Any] = {
+            CONF_START_DATE: dt_util.now().date().isoformat(),
+            CONF_EV_CONSUMPTION: 22,  # suggested; clear it to hide the estimate
+        }
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
