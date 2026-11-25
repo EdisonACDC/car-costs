@@ -606,7 +606,17 @@ class CarCostTracker:
         if months > 0 and out:
             start = out[0]["month"] + "-01"
             daily = [p for p in daily if p["date"] >= start]
-        return {"months": out, "daily": daily, "investment": self.summary(today).investment}
+        home_daily = [
+            {"date": day, "kwh": round(v["kwh"], 2), "cost": round(v["cost"], 2)}
+            for day, v in sorted(self.data.get("home_daily", {}).items())
+            if months <= 0 or not out or day >= out[0]["month"] + "-01"
+        ]
+        return {
+            "months": out,
+            "daily": daily,
+            "home_daily": home_daily,
+            "investment": self.summary(today).investment,
+        }
 
 
 EDITABLE_COMMON = ("total_cost", "odometer", "date", "station", "note", "image")

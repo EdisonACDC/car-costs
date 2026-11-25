@@ -4,3 +4,5 @@ __pycache__/
 .venv/
 node_modules/
 
+tools/e2e/shots/
+tools/e2e/run.log

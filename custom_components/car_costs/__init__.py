@@ -133,6 +133,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.http.register_view(ReceiptUploadView())
     hass.http.register_view(SummaryView())
     hass.http.register_view(HistoryView())
+    hass.http.register_view(CarsView())
     hass.http.register_view(ImageView())
     hass.http.register_view(AppRedirectView())
     await hass.http.async_register_static_paths(
@@ -384,6 +385,23 @@ class SummaryView(HomeAssistantView):
         except ValueError:
             limit = 15
         return self.json(overview(tracker, limit))
+
+
+class CarsView(HomeAssistantView):
+    """GET the cars that are set up (the web app lets you switch between them)."""
+
+    url = "/api/car_costs/cars"
+    name = "api:car_costs:cars"
+    requires_auth = True
+
+    async def get(self, request: web.Request) -> web.Response:
+        hass: HomeAssistant = request.app["hass"]
+        return self.json(
+            [
+                {"config_entry_id": e.entry_id, "title": e.title}
+                for e in hass.config_entries.async_loaded_entries(DOMAIN)
+            ]
+        )
 
 
 class HistoryView(HomeAssistantView):

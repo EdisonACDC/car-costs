@@ -97,6 +97,7 @@ async def test_home_daily_and_history_view(hass: HomeAssistant, hass_client, has
     assert month["home_cost"] == 3.0 + 1.5 and month["home_kwh"] == 15.0  # plug + manual
     assert month["energy_cost"] == round(36 + 5.9 + 4.5, 2)
     assert month["reference_cost"] == 96.0  # 1000 km * 6 l/100 * 1.60, first month
+    assert body["home_daily"] == [{"date": _today().isoformat(), "kwh": 10.0, "cost": 3.0}]
     assert body["daily"][-1]["date"] == _today().isoformat()  # live point
     assert body["daily"][-1]["km"] == 1000
     assert body["investment"] == 27000
@@ -301,3 +302,19 @@ async def test_remove_entry_deletes_storage(hass: HomeAssistant, hass_storage) -
     await hass.config_entries.async_remove(entry.entry_id)
     await hass.async_block_till_done()
     assert key not in hass_storage
+
+
+async def test_cars_view(hass: HomeAssistant, hass_client, hass_client_no_auth) -> None:
+    entry = await _setup(hass)
+    assert (await (await hass_client_no_auth()).get("/api/car_costs/cars")).status == 401
+    r = await (await hass_client()).get("/api/car_costs/cars")
+    assert await r.json() == [{"config_entry_id": entry.entry_id, "title": "Kodiaq"}]
+
+
+async def test_new_web_app_files_are_served(hass: HomeAssistant, hass_client_no_auth) -> None:
+    await _setup(hass)
+    anon = await hass_client_no_auth()
+    for f in ("index.html", "app.css", "app.js", "auth.js", "i18n.js", "ui.js", "forms.js", "charts.js",
+              "sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png",
+              "apple-touch-icon.png", "splash/splash-1170x2532.png"):
+        assert (await anon.get(f"/car_costs_static/app/{f}")).status == 200, f
