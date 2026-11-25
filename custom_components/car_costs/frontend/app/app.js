@@ -10,6 +10,7 @@ import { barsChart, lineChart, donut } from "./charts.js";
 import { $, $$, esc, buzz, toast, loadThumbs } from "./ui.js";
 import { initForms, openAdd, openDetail } from "./forms.js";
 
+{ const th = new URLSearchParams(location.search).get("theme"); if (th) document.documentElement.dataset.theme = th; }
 const CACHE_KEY = "car_costs_cache";
 const ENTRY_KEY = "car_costs_entry";
 const RING = 2 * Math.PI * 56;
@@ -30,6 +31,11 @@ function showLogin() {
   setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("login_title"))}</h1><p>${esc(t("login_text"))}</p>
     <button class="btn" id="go">${esc(t("login_btn"))}</button></div>`);
   $("#go").onclick = auth.login;
+  hideSplash();
+}
+function showWelcome() {
+  setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("welcome_title"))}</h1><p>${esc(t("welcome_text"))}</p>
+    <a class="btn" href="${auth.BASE}/config/integrations/dashboard/add?domain=car_costs" target="_top">${esc(t("welcome_btn"))}</a></div>`);
   hideSplash();
 }
 function showMessage(text, retry) {
@@ -84,7 +90,7 @@ async function refresh({ quiet = false } = {}) {
     return true;
   } catch (e) {
     if (e instanceof LoginRequired) { showLogin(); return false; }
-    if (e instanceof ApiError && e.status === 404) { showMessage(esc(t("no_integration"))); return false; }
+    if (e instanceof ApiError && e.status === 404) { showWelcome(); return false; }
     if (e instanceof Unreachable || e instanceof TypeError) {
       if (state.ov || loadCache()) { state.offline = true; render(); }
       else showMessage(esc(t("unreachable")), true);
@@ -255,7 +261,7 @@ function settingsHtml() {
     <section class="group glass"><div class="row"><span class="k">${esc(t("s_language"))}</span>
       <select id="lang"><option value="auto" ${pref === "auto" ? "selected" : ""}>${esc(t("s_auto"))}</option>
       ${LANGS.map((l) => `<option value="${l}" ${pref === l ? "selected" : ""}>${{ it: "Italiano", de: "Deutsch", en: "English" }[l]}</option>`).join("")}</select></div></section>
-    <section class="group glass"><button class="row" id="logout"><span class="neg">${esc(t("s_logout"))}</span></button>
+    <section class="group glass">${auth.EMBEDDED ? "" : `<button class="row" id="logout"><span class="neg">${esc(t("s_logout"))}</span></button>`}
       <div class="row"><span class="k">${esc(t("s_version"))}</span><span class="vv">${esc(ov.version)}</span></div></section>`;
 }
 
@@ -271,7 +277,7 @@ function render() {
   if (!state.ov) return;
   labelTabs();
   const y = window.scrollY;
-  root.innerHTML = `<div class="view">${VIEWS[state.tab]()}</div>`;
+  root.innerHTML = `<div class="view v-${state.tab}">${VIEWS[state.tab]()}</div>`;
   $("#tabs").hidden = false;
   $$("#tabs [data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === state.tab));
   requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -367,5 +373,6 @@ async function start() {
   if (!ok && state.ov && !state.offline) { state.offline = true; render(); }
 }
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if (auth.EMBEDDED) document.documentElement.classList.add("embed");
+if ("serviceWorker" in navigator && !auth.EMBEDDED) navigator.serviceWorker.register("sw.js").catch(() => {});
 start();

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers import selector
@@ -33,6 +32,7 @@ from .const import (
     CONF_REF_MAINTENANCE,
     CONF_REF_NAME,
     CONF_REF_TAX,
+    CONF_SHOW_PANEL,
     CONF_START_DATE,
     CONF_START_ODOMETER,
     DEFAULTS,
@@ -44,7 +44,10 @@ from .const import (
 def _euro(maximum: float = 500000, step: float = 1) -> selector.NumberSelector:
     return selector.NumberSelector(
         selector.NumberSelectorConfig(
-            min=0, max=maximum, step=step, mode=selector.NumberSelectorMode.BOX,
+            min=0,
+            max=maximum,
+            step=step,
+            mode=selector.NumberSelectorMode.BOX,
             unit_of_measurement="€",
         )
     )
@@ -53,14 +56,19 @@ def _euro(maximum: float = 500000, step: float = 1) -> selector.NumberSelector:
 def _number(unit: str, maximum: float, step: float) -> selector.NumberSelector:
     return selector.NumberSelector(
         selector.NumberSelectorConfig(
-            min=0, max=maximum, step=step, mode=selector.NumberSelectorMode.BOX,
+            min=0,
+            max=maximum,
+            step=step,
+            mode=selector.NumberSelectorMode.BOX,
             unit_of_measurement=unit,
         )
     )
 
 
 def _sensor() -> selector.EntitySelector:
-    return selector.EntitySelector(selector.EntitySelectorConfig(domain=["sensor", "input_number", "number"]))
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(domain=["sensor", "input_number", "number"])
+    )
 
 
 def _opt(key: str, values: dict[str, Any]) -> vol.Optional:
@@ -75,7 +83,7 @@ def _req(key: str, values: dict[str, Any]) -> vol.Required:
     return vol.Required(key, default=default) if default is not None else vol.Required(key)
 
 
-def car_schema(v: dict[str, Any]) -> dict:
+def car_schema(v: dict[str, Any]) -> dict[Any, Any]:
     return {
         _req(CONF_NAME, v): selector.TextSelector(),
         _req(CONF_PURCHASE_PRICE, v): _euro(),
@@ -83,10 +91,13 @@ def car_schema(v: dict[str, Any]) -> dict:
         _req(CONF_START_DATE, v): selector.DateSelector(),
         _req(CONF_START_ODOMETER, v): _number("km", 2000000, 1),
         _opt(CONF_ODOMETER_ENTITY, v): _sensor(),
+        vol.Optional(
+            CONF_SHOW_PANEL, default=v.get(CONF_SHOW_PANEL, True)
+        ): selector.BooleanSelector(),
     }
 
 
-def energy_schema(v: dict[str, Any]) -> dict:
+def energy_schema(v: dict[str, Any]) -> dict[Any, Any]:
     return {
         _req(CONF_ELECTRICITY_PRICE, v): _number("€/kWh", 5, 0.001),
         _opt(CONF_ELECTRICITY_PRICE_ENTITY, v): _sensor(),
@@ -100,7 +111,7 @@ def energy_schema(v: dict[str, Any]) -> dict:
     }
 
 
-def reference_schema(v: dict[str, Any]) -> dict:
+def reference_schema(v: dict[str, Any]) -> dict[Any, Any]:
     return {
         _req(CONF_REF_NAME, v): selector.TextSelector(),
         _req(CONF_REF_FUEL, v): selector.SelectSelector(
@@ -113,7 +124,7 @@ def reference_schema(v: dict[str, Any]) -> dict:
     }
 
 
-def fixed_schema(v: dict[str, Any]) -> dict:
+def fixed_schema(v: dict[str, Any]) -> dict[Any, Any]:
     return {
         _req(key, v): _euro(20000)
         for key in (
@@ -148,19 +159,27 @@ class CarCostsConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             self._data.update(user_input)
             return await self.async_step_reference()
-        return self.async_show_form(step_id="energy", data_schema=vol.Schema(energy_schema(self._data)))
+        return self.async_show_form(
+            step_id="energy", data_schema=vol.Schema(energy_schema(self._data))
+        )
 
-    async def async_step_reference(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_reference(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         if user_input is not None:
             self._data.update(user_input)
             return await self.async_step_fixed()
-        return self.async_show_form(step_id="reference", data_schema=vol.Schema(reference_schema(self._data)))
+        return self.async_show_form(
+            step_id="reference", data_schema=vol.Schema(reference_schema(self._data))
+        )
 
     async def async_step_fixed(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             self._data.update(user_input)
             return self.async_create_entry(title=self._data[CONF_NAME], data=self._data)
-        return self.async_show_form(step_id="fixed", data_schema=vol.Schema(fixed_schema(self._data)))
+        return self.async_show_form(
+            step_id="fixed", data_schema=vol.Schema(fixed_schema(self._data))
+        )
 
     @staticmethod
     @callback
@@ -177,7 +196,7 @@ class CarCostsOptionsFlow(OptionsFlow):
     def _current(self) -> dict[str, Any]:
         return {**self.config_entry.data, **self.config_entry.options, **self._data}
 
-    def _store(self, user_input: dict[str, Any], schema: dict) -> None:
+    def _store(self, user_input: dict[str, Any], schema: dict[Any, Any]) -> None:
         for key in schema:
             name = str(key)
             self._data[name] = user_input.get(name)
@@ -196,7 +215,9 @@ class CarCostsOptionsFlow(OptionsFlow):
             return await self.async_step_reference()
         return self.async_show_form(step_id="energy", data_schema=vol.Schema(schema))
 
-    async def async_step_reference(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_reference(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         schema = reference_schema(self._current())
         if user_input is not None:
             self._store(user_input, schema)

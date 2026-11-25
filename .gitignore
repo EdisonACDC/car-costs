@@ -6,3 +6,9 @@ node_modules/
 
 tools/e2e/shots/
 tools/e2e/run.log
+
+# working files (prompts, mockup, zips): never part of the repository
+PROMPT_*.md
+mockup.html
+*.zip
+!docs/**/*.zip

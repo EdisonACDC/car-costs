@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
-from unittest.mock import patch
+from datetime import timedelta
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.setup import async_setup_component
 from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -31,8 +29,12 @@ BASE = {
     "ref_consumption": 6.0,
     "ref_fuel_price": 1.60,
     "old_car_sale_price": 11000,
-    "new_tax": 30, "new_insurance": 600, "new_maintenance": 300,
-    "ref_tax": 265, "ref_insurance": 500, "ref_maintenance": 700,
+    "new_tax": 30,
+    "new_insurance": 600,
+    "new_maintenance": 300,
+    "ref_tax": 265,
+    "ref_insurance": 500,
+    "ref_maintenance": 700,
 }
 
 
@@ -51,21 +53,45 @@ def val(hass, key):
 
 
 async def test_config_flow(hass: HomeAssistant) -> None:
-    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
     assert result["type"] is FlowResultType.FORM
-    r = await hass.config_entries.flow.async_configure(result["flow_id"], {
-        "name": "Kodiaq", "purchase_price": 38000, "extra_investment": 0,
-        "start_date": "2026-12-05", "start_odometer": 0})
+    r = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            "name": "Kodiaq",
+            "purchase_price": 38000,
+            "extra_investment": 0,
+            "start_date": "2026-12-05",
+            "start_odometer": 0,
+        },
+    )
     assert r["step_id"] == "energy"
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {"electricity_price": 0.32})
     assert r["step_id"] == "reference"
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {
-        "ref_name": "Passat B8", "ref_fuel": "diesel", "ref_consumption": 5.8,
-        "ref_fuel_price": 1.65, "old_car_sale_price": 11700})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {
+            "ref_name": "Passat B8",
+            "ref_fuel": "diesel",
+            "ref_consumption": 5.8,
+            "ref_fuel_price": 1.65,
+            "old_car_sale_price": 11700,
+        },
+    )
     assert r["step_id"] == "fixed"
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {
-        "new_tax": 0, "new_insurance": 0, "new_maintenance": 0,
-        "ref_tax": 0, "ref_insurance": 0, "ref_maintenance": 0})
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"],
+        {
+            "new_tax": 0,
+            "new_insurance": 0,
+            "new_maintenance": 0,
+            "ref_tax": 0,
+            "ref_insurance": 0,
+            "ref_maintenance": 0,
+        },
+    )
     assert r["type"] is FlowResultType.CREATE_ENTRY
     assert r["title"] == "Kodiaq"
     await hass.async_block_till_done()
@@ -79,11 +105,30 @@ async def test_options_flow_clears_and_updates(hass: HomeAssistant) -> None:
     d = {k: BASE[k] for k in ("purchase_price", "extra_investment", "start_date", "start_odometer")}
     r = await hass.config_entries.options.async_configure(r["flow_id"], {**d, "name": "Kodiaq iV"})
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"electricity_price": 0.25})
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {
-        "ref_name": "Passat", "ref_fuel": "diesel", "ref_consumption": 7.0,
-        "ref_fuel_price": 1.60, "old_car_sale_price": 12000})
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {k: BASE[k] for k in (
-        "new_tax", "new_insurance", "new_maintenance", "ref_tax", "ref_insurance", "ref_maintenance")})
+    r = await hass.config_entries.options.async_configure(
+        r["flow_id"],
+        {
+            "ref_name": "Passat",
+            "ref_fuel": "diesel",
+            "ref_consumption": 7.0,
+            "ref_fuel_price": 1.60,
+            "old_car_sale_price": 12000,
+        },
+    )
+    r = await hass.config_entries.options.async_configure(
+        r["flow_id"],
+        {
+            k: BASE[k]
+            for k in (
+                "new_tax",
+                "new_insurance",
+                "new_maintenance",
+                "ref_tax",
+                "ref_insurance",
+                "ref_maintenance",
+            )
+        },
+    )
     assert r["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert entry.title == "Kodiaq iV"
@@ -105,9 +150,15 @@ async def test_costs_and_comparison(hass: HomeAssistant) -> None:
     hass.states.async_set("sensor.presa_auto_energy", "110.0")
     await hass.async_block_till_done()
     # refuel + public charge
-    await hass.services.async_call(DOMAIN, "add_refuel", {"liters": 20, "total_cost": 36.0}, blocking=True)
-    await hass.services.async_call(DOMAIN, "add_charge", {"kwh": 10, "total_cost": 5.9, "location": "public"}, blocking=True)
-    await hass.services.async_call(DOMAIN, "add_charge", {"kwh": 5, "location": "home"}, blocking=True)
+    await hass.services.async_call(
+        DOMAIN, "add_refuel", {"liters": 20, "total_cost": 36.0}, blocking=True
+    )
+    await hass.services.async_call(
+        DOMAIN, "add_charge", {"kwh": 10, "total_cost": 5.9, "location": "public"}, blocking=True
+    )
+    await hass.services.async_call(
+        DOMAIN, "add_charge", {"kwh": 5, "location": "home"}, blocking=True
+    )
     await hass.async_block_till_done()
 
     s = entry.runtime_data.summary()
@@ -120,13 +171,18 @@ async def test_costs_and_comparison(hass: HomeAssistant) -> None:
     assert s.fixed_cost_savings == round(535 * s.days / 365, 2)
     assert s.investment == 27000
     assert s.amortization == round(s.total_savings / 27000 * 100, 2)
-    assert s.break_even_date is not None and s.break_even_date > s.break_even_date.today() - timedelta(days=2)
+    assert (
+        s.break_even_date is not None
+        and s.break_even_date > s.break_even_date.today() - timedelta(days=2)
+    )
     assert s.cost_per_100km == round(46.4 / 1000 * 100, 2)
     assert s.avg_fuel_consumption == 2.0
 
     # delete the refuel
     refuel = [e for e in entry.runtime_data.data["log"] if e["kind"] == "refuel"][0]
-    await hass.services.async_call(DOMAIN, "delete_entry", {"entry_id": refuel["id"]}, blocking=True)
+    await hass.services.async_call(
+        DOMAIN, "delete_entry", {"entry_id": refuel["id"]}, blocking=True
+    )
     assert entry.runtime_data.summary().fuel_cost == 0
 
 
@@ -148,7 +204,9 @@ async def test_auto_start_odometer(hass: HomeAssistant) -> None:
 
 async def test_persistence(hass: HomeAssistant) -> None:
     entry = await _setup(hass)
-    await hass.services.async_call(DOMAIN, "add_refuel", {"liters": 30, "total_cost": 50, "odometer": 600}, blocking=True)
+    await hass.services.async_call(
+        DOMAIN, "add_refuel", {"liters": 30, "total_cost": 50, "odometer": 600}, blocking=True
+    )
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
     assert entry.runtime_data.summary().fuel_cost == 50
@@ -156,7 +214,15 @@ async def test_persistence(hass: HomeAssistant) -> None:
 
 
 def test_normalise() -> None:
-    r = normalise({"kind": "refuel", "liters": "42,15", "price_per_unit": 1.799, "date": "2026-12-07", "station": "Aral TBB"})
+    r = normalise(
+        {
+            "kind": "refuel",
+            "liters": "42,15",
+            "price_per_unit": 1.799,
+            "date": "2026-12-07",
+            "station": "Aral TBB",
+        }
+    )
     assert r["total_cost"] == round(42.15 * 1.799, 2) and r["complete"]
     r = normalise({"kwh": 20.5, "total_cost": 12.1})
     assert r["kind"] == "charge" and r["location"] == "public" and r["complete"]
@@ -171,7 +237,9 @@ async def _fake_ai(hass, data):
         calls.append(call.data)
         return {"conversation_id": "x", "data": data}
 
-    hass.services.async_register("ai_task", "generate_data", handler, supports_response=SupportsResponse.ONLY)
+    hass.services.async_register(
+        "ai_task", "generate_data", handler, supports_response=SupportsResponse.ONLY
+    )
     return calls
 
 
@@ -179,10 +247,22 @@ async def test_scan_receipt_service(hass: HomeAssistant, tmp_path) -> None:
     hass.config.media_dirs = {"local": str(tmp_path)}
     hass.config.allowlist_external_dirs = {str(tmp_path)}
     entry = await _setup(hass)
-    calls = await _fake_ai(hass, {"kind": "refuel", "liters": 40.0, "total_cost": 70.36, "date": "2026-12-08", "station": "Shell Lauda", "fuel": "Super E10"})
+    calls = await _fake_ai(
+        hass,
+        {
+            "kind": "refuel",
+            "liters": 40.0,
+            "total_cost": 70.36,
+            "date": "2026-12-08",
+            "station": "Shell Lauda",
+            "fuel": "Super E10",
+        },
+    )
     photo = tmp_path / "foto.jpg"
     photo.write_bytes(b"\xff\xd8fake")
-    resp = await hass.services.async_call(DOMAIN, "scan_receipt", {"image": str(photo)}, blocking=True, return_response=True)
+    resp = await hass.services.async_call(
+        DOMAIN, "scan_receipt", {"image": str(photo)}, blocking=True, return_response=True
+    )
     assert resp["added"]["liters"] == 40.0
     assert resp["added"]["source"] == "receipt"
     att = calls[0]["attachments"][0]["media_content_id"]
@@ -190,12 +270,15 @@ async def test_scan_receipt_service(hass: HomeAssistant, tmp_path) -> None:
     assert entry.runtime_data.summary().fuel_cost == 70.36
 
 
-async def test_upload_view_and_ws(hass: HomeAssistant, hass_client, hass_ws_client, tmp_path) -> None:
+async def test_upload_view_and_ws(
+    hass: HomeAssistant, hass_client, hass_ws_client, tmp_path
+) -> None:
     hass.config.media_dirs = {"local": str(tmp_path)}
     entry = await _setup(hass)
     await _fake_ai(hass, {"kind": "charge", "kwh": 22.0, "total_cost": 13.2})
     client = await hass_client()
     import aiohttp
+
     form = aiohttp.FormData()
     form.add_field("file", b"\xff\xd8fake", filename="s.jpg", content_type="image/jpeg")
     r = await client.post(f"/api/car_costs/receipt/{entry.entry_id}", data=form)
@@ -221,6 +304,7 @@ async def test_scan_without_ai_task(hass: HomeAssistant, hass_client, tmp_path) 
     entry = await _setup(hass)
     client = await hass_client()
     import aiohttp
+
     form = aiohttp.FormData()
     form.add_field("file", b"x", filename="s.jpg")
     r = await client.post(f"/api/car_costs/receipt/{entry.entry_id}", data=form)

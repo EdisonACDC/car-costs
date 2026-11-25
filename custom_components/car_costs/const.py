@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "car_costs"
-VERSION = "0.3.0b1"
+VERSION = "0.3.0b2"
 
 STORAGE_VERSION = 1
 
@@ -17,6 +17,7 @@ CONF_EXTRA_INVESTMENT = "extra_investment"
 CONF_START_DATE = "start_date"
 CONF_START_ODOMETER = "start_odometer"
 CONF_ODOMETER_ENTITY = "odometer_entity"
+CONF_SHOW_PANEL = "show_panel"
 CONF_HOME_ENERGY_ENTITY = "home_energy_entity"
 CONF_ELECTRICITY_PRICE = "electricity_price"
 CONF_ELECTRICITY_PRICE_ENTITY = "electricity_price_entity"
@@ -94,3 +95,6 @@ EVENT_RECEIPT_SCANNED = f"{DOMAIN}_receipt_scanned"
 MEDIA_SUBDIR = "car_costs"
 FRONTEND_URL = "/car_costs_static"
 CARD_FILENAME = "car-costs-card.js"
+PANEL_URL_PATH = "costi-auto"
+PANEL_TITLE = "Costi Auto"
+PANEL_ICON = "mdi:car-electric"

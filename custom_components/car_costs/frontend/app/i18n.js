@@ -11,6 +11,7 @@ const DICT = {
     login_title: "Costi Auto", login_text: "Accedi con il tuo utente di Home Assistant per vedere i costi della tua auto.",
     login_btn: "Accedi a Home Assistant", retry: "Riprova",
     unreachable: "Home Assistant non raggiungibile", no_integration: "Car Costs non è configurato in Home Assistant",
+    welcome_title: "Benvenuto in Costi Auto", welcome_text: "Aggiungi la tua auto: in quattro passi scopri quanto costa davvero e quando si ripaga.", welcome_btn: "Aggiungi la prima auto",
     offline: "offline", loading: "Caricamento…",
     since: "dal {date}", days_one: "{n} giorno", days_other: "{n} giorni",
     repaid: "ripagato", saved: "Risparmiato", on_invested: "su {amount} investiti",
@@ -55,6 +56,7 @@ const DICT = {
     login_title: "Autokosten", login_text: "Melde dich mit deinem Home-Assistant-Benutzer an, um die Kosten deines Autos zu sehen.",
     login_btn: "Bei Home Assistant anmelden", retry: "Erneut versuchen",
     unreachable: "Home Assistant nicht erreichbar", no_integration: "Car Costs ist in Home Assistant nicht eingerichtet",
+    welcome_title: "Willkommen bei Costi Auto", welcome_text: "Füge dein Auto hinzu: in vier Schritten siehst du, was es wirklich kostet und wann es sich bezahlt macht.", welcome_btn: "Erstes Auto hinzufügen",
     offline: "offline", loading: "Laden…",
     since: "seit {date}", days_one: "{n} Tag", days_other: "{n} Tage",
     repaid: "amortisiert", saved: "Gespart", on_invested: "bei {amount} Investition",
@@ -99,6 +101,7 @@ const DICT = {
     login_title: "Car Costs", login_text: "Log in with your Home Assistant user to see what your car costs.",
     login_btn: "Log in to Home Assistant", retry: "Retry",
     unreachable: "Home Assistant not reachable", no_integration: "Car Costs is not set up in Home Assistant",
+    welcome_title: "Welcome to Costi Auto", welcome_text: "Add your car: in four steps you see what it really costs and when it pays off.", welcome_btn: "Add your first car",
     offline: "offline", loading: "Loading…",
     since: "since {date}", days_one: "{n} day", days_other: "{n} days",
     repaid: "paid back", saved: "Saved", on_invested: "of {amount} invested",
@@ -142,7 +145,8 @@ const DICT = {
 function detect() {
   const saved = localStorage.getItem(LANG_KEY);
   if (saved && LANGS.includes(saved)) return saved;
-  const phone = (navigator.language || "en").slice(0, 2).toLowerCase();
+  const given = new URLSearchParams(location.search).get("lang");
+  const phone = (given || navigator.language || "en").slice(0, 2).toLowerCase();
   return LANGS.includes(phone) ? phone : "en";
 }
 

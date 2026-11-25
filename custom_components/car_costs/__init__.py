@@ -6,11 +6,13 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from aiohttp import web
+import homeassistant.helpers.config_validation as cv
 import voluptuous as vol
-
+from aiohttp import BodyPartReader, web
 from homeassistant.components import frontend, websocket_api
-from homeassistant.components.http import HomeAssistantView, StaticPathConfig
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.components.websocket_api.connection import ActiveConnection
+from homeassistant.components.websocket_api.decorators import websocket_command
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import (
@@ -21,7 +23,7 @@ from homeassistant.core import (
     callback,
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-import homeassistant.helpers.config_validation as cv
+from homeassistant.helpers.http import HomeAssistantView
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -56,6 +58,7 @@ from .const import (
     STORAGE_VERSION,
     VERSION,
 )
+from .panel import async_sync_panel
 from .receipt import MIME_BY_SUFFIX, async_read_receipt, async_save_image, image_path
 from .tracker import CarCostTracker, parse_day
 
@@ -67,8 +70,8 @@ MAX_UPLOAD = 15 * 1024 * 1024
 
 type CarCostsConfigEntry = ConfigEntry[CarCostTracker]
 
-_BASE = {vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string}
-_COMMON = {
+_BASE: dict[Any, Any] = {vol.Optional(ATTR_CONFIG_ENTRY_ID): cv.string}
+_COMMON: dict[Any, Any] = {
     vol.Optional(ATTR_ODOMETER): vol.Coerce(float),
     vol.Optional(ATTR_DATE): cv.string,
     vol.Optional(ATTR_STATION): cv.string,
@@ -137,11 +140,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     hass.http.register_view(ImageView())
     hass.http.register_view(AppRedirectView())
     await hass.http.async_register_static_paths(
-        [
-            StaticPathConfig(
-                FRONTEND_URL, str(Path(__file__).parent / "frontend"), False
-            )
-        ]
+        [StaticPathConfig(FRONTEND_URL, str(Path(__file__).parent / "frontend"), False)]
     )
     frontend.add_extra_js_url(hass, f"{FRONTEND_URL}/{CARD_FILENAME}?v={VERSION}")
     return True
@@ -153,6 +152,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: CarCostsConfigEntry) -> 
     entry.runtime_data = tracker
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+    await async_sync_panel(hass)
     return True
 
 
@@ -175,7 +175,10 @@ async def _async_options_updated(hass: HomeAssistant, entry: CarCostsConfigEntry
 
 async def async_unload_entry(hass: HomeAssistant, entry: CarCostsConfigEntry) -> bool:
     await entry.runtime_data.async_unload()
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if ok:
+        await async_sync_panel(hass, leaving=entry)
+    return ok
 
 
 # --------------------------------------------------------------------- helpers
@@ -186,14 +189,11 @@ def get_tracker(hass: HomeAssistant, entry_id: str | None) -> CarCostTracker:
         if entry_id in (None, "", e.entry_id)
     ]
     if not entries:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="entry_not_found"
-        )
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="entry_not_found")
     if len(entries) > 1:
-        raise ServiceValidationError(
-            translation_domain=DOMAIN, translation_key="entry_required"
-        )
-    return entries[0].runtime_data
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="entry_required")
+    tracker: CarCostTracker = entries[0].runtime_data
+    return tracker
 
 
 async def async_scan(
@@ -267,9 +267,7 @@ def _register_services(hass: HomeAssistant) -> None:
     async def update_entry(call: ServiceCall) -> ServiceResponse:
         tracker = get_tracker(hass, call.data.get(ATTR_CONFIG_ENTRY_ID))
         fields = {
-            k: v
-            for k, v in call.data.items()
-            if k not in (ATTR_CONFIG_ENTRY_ID, ATTR_ENTRY_ID)
+            k: v for k, v in call.data.items() if k not in (ATTR_CONFIG_ENTRY_ID, ATTR_ENTRY_ID)
         }
         item = tracker.update(call.data[ATTR_ENTRY_ID], fields)
         if item is None:
@@ -295,7 +293,8 @@ def _register_services(hass: HomeAssistant) -> None:
             media_id, mime = image, "image/jpeg"
         if Path(media_id).is_absolute():  # a file path on the HA host
             path = Path(media_id)
-            if not hass.config.is_allowed_path(str(path)) or not path.is_file():
+            is_file = await hass.async_add_executor_job(path.is_file)
+            if not hass.config.is_allowed_path(str(path)) or not is_file:
                 raise ServiceValidationError(f"File not allowed or missing: {media_id}")
             content = await hass.async_add_executor_job(path.read_bytes)
             media_id, mime = await async_save_image(
@@ -319,7 +318,7 @@ def _register_services(hass: HomeAssistant) -> None:
 
 
 # ------------------------------------------------------------------ websocket
-@websocket_api.websocket_command(
+@websocket_command(
     {
         vol.Required("type"): "car_costs/entries",
         vol.Optional("config_entry_id"): str,
@@ -327,9 +326,7 @@ def _register_services(hass: HomeAssistant) -> None:
     }
 )
 @callback
-def ws_entries(
-    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
-) -> None:
+def ws_entries(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Return the log and the summary for the card."""
     try:
         tracker = get_tracker(hass, msg.get("config_entry_id"))
@@ -345,7 +342,11 @@ def overview(tracker: CarCostTracker, limit: int = 50) -> dict[str, Any]:
     summary = {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in vars(s).items()}
     entries = [{**e, "has_image": bool(e.get("image"))} for e in tracker.recent(limit)]
     last_station = next(
-        (e["station"] for e in reversed(tracker.data["log"]) if e["kind"] == KIND_REFUEL and e.get("station")),
+        (
+            e["station"]
+            for e in reversed(tracker.data["log"])
+            if e["kind"] == KIND_REFUEL and e.get("station")
+        ),
         None,
     )
     return {
@@ -482,7 +483,7 @@ class ReceiptUploadView(HomeAssistantView):
             return self.json_message("Car Costs entry not found", 404)
         reader = await request.multipart()
         field = await reader.next()
-        if field is None or field.name != "file":
+        if not isinstance(field, BodyPartReader) or field.name != "file":
             return self.json_message("Missing file", 400)
         content = bytearray()
         while chunk := await field.read_chunk():

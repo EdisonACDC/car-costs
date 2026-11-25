@@ -301,6 +301,62 @@ for (const scheme of ["light", "dark"]) {
   await context.close();
 }
 
+// ------------------------------------------- the panel inside Home Assistant
+{
+  console.log("\n== panel (side menu) ==");
+  for (const [name, w, h, narrow] of [["phone", 390, 844, true], ["tablet", 1280, 800, false]]) {
+    for (const scheme of ["light", "dark"]) {
+      fake.reset();
+      const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, isMobile: narrow, hasTouch: narrow, colorScheme: scheme === "dark" ? "light" : "dark", locale: "it-IT" });
+      const page = await context.newPage();
+      const errors = [];
+      page.on("console", (m) => { if (["error", "warning"].includes(m.type())) errors.push(m.text()); });
+      page.on("pageerror", (e) => errors.push(e.message));
+      await page.goto(`${fake.url}/host?dark=${scheme === "dark" ? 1 : 0}&narrow=${narrow ? 1 : 0}`);
+      const frame = page.frameLocator("iframe");
+      await frame.locator(".hero").waitFor({ timeout: 10000 });
+      await wait(1500);
+      const tag = `panel-${name}-${scheme}`;
+      await shot(page, tag);
+      ok(!fake.calls.some((c) => c.path === "/auth/token"), `${tag}: no login, no token request`);
+      ok(await page.evaluate(() => window.__fetches > 0), `${tag}: calls go through hass.fetchWithAuth`);
+      // the phone's colour scheme is the opposite of Home Assistant's: the panel must follow Home Assistant
+      const theme = await frame.locator("html").evaluate((e) => e.dataset.theme);
+      ok(theme === scheme, `${tag}: follows Home Assistant's theme (${theme})`);
+      const navBox = await frame.locator("#tabs").boundingBox();
+      if (narrow) {
+        ok(navBox.y > h - 120, `${tag}: bottom bar on the phone`);
+        await page.locator("car-costs-panel #menu").click();
+        ok(await page.evaluate(() => window.__menu) === 1, `${tag}: menu button opens Home Assistant's sidebar`);
+      } else {
+        ok(navBox.x < 40 && navBox.height > 250 && navBox.width < 120, `${tag}: navigation rail on the left (tablet/PC)`);
+        const cols = await frame.locator(".v-overview").evaluate((e) => getComputedStyle(e).columnCount);
+        ok(cols === "2", `${tag}: content on two columns`);
+        ok(await page.locator("car-costs-panel #menu").isHidden(), `${tag}: no menu button when the sidebar is docked`);
+      }
+      await frame.locator('[data-tab="settings"]').click();
+      await wait(400);
+      ok(await frame.locator("#logout").count() === 0, `${tag}: no log-out button inside Home Assistant`);
+      if (name === "tablet") { await frame.locator('[data-tab="charts"]').click(); await wait(900); await shot(page, `${tag}-charts`); }
+      ok(errors.filter((e) => !/Failed to load resource/.test(e)).length === 0, `${tag}: no console errors${errors.length ? " " + errors.join(" | ") : ""}`);
+      await context.close();
+    }
+  }
+  // no car yet: welcome screen with the button that opens the setup
+  fake.reset(); fake.station.noCars = true;
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, colorScheme: "dark", locale: "it-IT" });
+  const page = await context.newPage();
+  await page.goto(`${fake.url}/host?dark=1&narrow=1`);
+  const frame = page.frameLocator("iframe");
+  await frame.locator(".center .btn").waitFor({ timeout: 10000 });
+  await wait(500);
+  await shot(page, "panel-phone-dark-welcome");
+  const href = await frame.locator(".center .btn").getAttribute("href");
+  ok(/\/config\/integrations\/dashboard\/add\?domain=car_costs$/.test(href) && await frame.locator(".center .btn").getAttribute("target") === "_top", "welcome screen opens the Car Costs setup");
+  await context.close();
+  fake.reset();
+}
+
 await browser.close();
 await fake.close();
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nAll checks passed");

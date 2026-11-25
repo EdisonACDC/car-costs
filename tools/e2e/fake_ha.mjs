@@ -81,6 +81,19 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     const url = new URL(req.url, "http://x");
     const p = url.pathname;
     if (p === "/car-costs") { res.writeHead(302, { Location: "/car_costs_static/app/index.html" }); return res.end(); }
+    if (p === "/host") {   // stands in for Home Assistant's frontend: it mounts the panel and gives it `hass`
+      const dark = url.searchParams.get("dark") === "1", narrow = url.searchParams.get("narrow") === "1", lang = url.searchParams.get("lang") || "it";
+      return send(res, 200, `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:${dark ? "#111" : "#fafafa"}}car-costs-panel{display:block;height:100%}</style>
+        <body><script type="module" src="/car_costs_static/panel.js"></script><script type="module">
+        window.__menu = 0; document.addEventListener("hass-toggle-menu", () => window.__menu++);
+        await customElements.whenDefined("car-costs-panel");
+        const el = document.createElement("car-costs-panel");
+        el.addEventListener("hass-toggle-menu", () => {});
+        document.body.append(el);
+        el.narrow = ${narrow};
+        el.hass = { language: "${lang}", themes: { darkMode: ${dark} }, fetchWithAuth: (path, init = {}) => { window.__fetches = (window.__fetches || 0) + 1; return fetch(path, { ...init, headers: { ...(init.headers || {}), Authorization: "Bearer tok" } }); } };
+        </script>`, "text/html");
+    }
     if (p === "/auth/authorize") {
       const back = new URL(url.searchParams.get("redirect_uri"));
       back.searchParams.set("code", "code123"); back.searchParams.set("state", url.searchParams.get("state"));
@@ -100,7 +113,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     if (p.startsWith("/config/")) return send(res, 200, "<h1>Home Assistant</h1>", "text/html");
     if (p.startsWith("/api/")) {
       if (req.headers.authorization !== "Bearer tok") return send(res, 401, { message: "Unauthorized" });
-      if (p === "/api/car_costs/cars") return send(res, 200, [{ config_entry_id: "car1", title: "Kodiaq iV" }]);
+      if (p === "/api/car_costs/cars") return send(res, 200, station.noCars ? [] : [{ config_entry_id: "car1", title: "Kodiaq iV" }]);
       if (p === "/api/car_costs/overview") return send(res, 200, overview());
       if (p === "/api/car_costs/history") return send(res, 200, history());
       if (p.startsWith("/api/car_costs/image/")) {
@@ -135,7 +148,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     send(res, 404, "not found", "text/plain");
   });
   return new Promise((resolve) => server.listen(port, "127.0.0.1", () => {
-    resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, station, reset: () => { db = seed(); calls.length = 0; station.ai = true; station.aiResult = null; }, close: () => new Promise((r) => server.close(r)) });
+    resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, station, reset: () => { db = seed(); calls.length = 0; station.ai = true; station.aiResult = null; station.noCars = false; }, close: () => new Promise((r) => server.close(r)) });
   }));
 }
 

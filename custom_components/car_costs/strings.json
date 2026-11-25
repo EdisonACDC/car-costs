@@ -10,7 +10,8 @@
           "extra_investment": "Extra costs (wallbox, registration…)",
           "start_date": "Start date (delivery)",
           "start_odometer": "Odometer at delivery (0 = first reading of the sensor)",
-          "odometer_entity": "Odometer sensor (e.g. MySkoda)"
+          "odometer_entity": "Odometer sensor (e.g. MySkoda)",
+          "show_panel": "Show \"Costi Auto\" in the side menu"
         }
       },
       "energy": {
@@ -61,7 +62,8 @@
           "extra_investment": "Extra costs (wallbox, registration…)",
           "start_date": "Start date (delivery)",
           "start_odometer": "Odometer at delivery (0 = first reading of the sensor)",
-          "odometer_entity": "Odometer sensor (e.g. MySkoda)"
+          "odometer_entity": "Odometer sensor (e.g. MySkoda)",
+          "show_panel": "Show \"Costi Auto\" in the side menu"
         }
       },
       "energy": {

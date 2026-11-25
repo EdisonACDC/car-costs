@@ -10,7 +10,8 @@
           "extra_investment": "Nebenkosten (Wallbox, Zulassung…)",
           "start_date": "Startdatum (Übergabe)",
           "start_odometer": "Km-Stand bei Übergabe (0 = erster Sensorwert)",
-          "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)"
+          "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)",
+          "show_panel": "\"Costi Auto\" im Seitenmenü anzeigen"
         }
       },
       "energy": {
@@ -61,7 +62,8 @@
           "extra_investment": "Nebenkosten (Wallbox, Zulassung…)",
           "start_date": "Startdatum (Übergabe)",
           "start_odometer": "Km-Stand bei Übergabe (0 = erster Sensorwert)",
-          "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)"
+          "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)",
+          "show_panel": "\"Costi Auto\" im Seitenmenü anzeigen"
         }
       },
       "energy": {

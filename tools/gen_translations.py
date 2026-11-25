@@ -16,7 +16,7 @@ T = {
         "fields": {
             "name": "Name of the new car", "purchase_price": "Purchase price", "extra_investment": "Extra costs (wallbox, registration…)",
             "start_date": "Start date (delivery)", "start_odometer": "Odometer at delivery (0 = first reading of the sensor)",
-            "odometer_entity": "Odometer sensor (e.g. MySkoda)", "electricity_price": "Electricity price at home",
+            "odometer_entity": "Odometer sensor (e.g. MySkoda)", "show_panel": "Show \"Costi Auto\" in the side menu", "electricity_price": "Electricity price at home",
             "electricity_price_entity": "Electricity price sensor (optional, overrides the price)",
             "home_energy_entity": "Home charging energy sensor (kWh)", "ai_task_entity": "AI Task for receipt photos",
             "ev_consumption": "Electric consumption (kWh/100 km) – for the estimate of electric km, optional",
@@ -70,7 +70,7 @@ T = {
         "fields": {
             "name": "Nome della nuova auto", "purchase_price": "Prezzo d'acquisto", "extra_investment": "Spese extra (wallbox, immatricolazione…)",
             "start_date": "Data di inizio (consegna)", "start_odometer": "Km alla consegna (0 = prima lettura del sensore)",
-            "odometer_entity": "Sensore contachilometri (es. MySkoda)", "electricity_price": "Prezzo corrente di casa",
+            "odometer_entity": "Sensore contachilometri (es. MySkoda)", "show_panel": "Mostra \"Costi Auto\" nel menu laterale", "electricity_price": "Prezzo corrente di casa",
             "electricity_price_entity": "Sensore prezzo corrente (facoltativo, sostituisce il prezzo)",
             "home_energy_entity": "Sensore energia ricarica a casa (kWh)", "ai_task_entity": "AI Task per le foto degli scontrini",
             "ev_consumption": "Consumo elettrico (kWh/100 km) – per stimare i km in elettrico, facoltativo",
@@ -124,7 +124,7 @@ T = {
         "fields": {
             "name": "Name des neuen Autos", "purchase_price": "Kaufpreis", "extra_investment": "Nebenkosten (Wallbox, Zulassung…)",
             "start_date": "Startdatum (Übergabe)", "start_odometer": "Km-Stand bei Übergabe (0 = erster Sensorwert)",
-            "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)", "electricity_price": "Strompreis zu Hause",
+            "odometer_entity": "Kilometerstand-Sensor (z. B. MySkoda)", "show_panel": "\"Costi Auto\" im Seitenmenü anzeigen", "electricity_price": "Strompreis zu Hause",
             "electricity_price_entity": "Strompreis-Sensor (optional, ersetzt den Preis)",
             "home_energy_entity": "Energiesensor Laden zu Hause (kWh)", "ai_task_entity": "AI Task für Belegfotos",
             "ev_consumption": "Stromverbrauch (kWh/100 km) – für die Schätzung der elektrischen km, optional",
@@ -171,7 +171,7 @@ T = {
 }
 
 FIELDS_BY_STEP = {
-    "user": ["name", "purchase_price", "extra_investment", "start_date", "start_odometer", "odometer_entity"],
+    "user": ["name", "purchase_price", "extra_investment", "start_date", "start_odometer", "odometer_entity", "show_panel"],
     "energy": ["electricity_price", "electricity_price_entity", "home_energy_entity", "ev_consumption", "ai_task_entity"],
     "reference": ["ref_name", "ref_fuel", "ref_consumption", "ref_fuel_price", "ref_fuel_price_entity", "old_car_sale_price"],
     "fixed": ["new_tax", "new_insurance", "new_maintenance", "ref_tax", "ref_insurance", "ref_maintenance"],

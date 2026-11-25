@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-import logging
 from pathlib import Path
 from typing import Any
-import uuid
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
@@ -177,9 +177,7 @@ class CarCostTracker:
         )
         # Days-based values (fixed costs, forecast) move once a day.
         self._unsubs.append(
-            async_track_time_change(
-                self.hass, self._on_midnight, hour=0, minute=0, second=5
-            )
+            async_track_time_change(self.hass, self._on_midnight, hour=0, minute=0, second=5)
         )
         # Pick up values that changed while HA was down.
         self._sync_odometer()
@@ -261,10 +259,7 @@ class CarCostTracker:
     def _sync_odometer(self) -> None:
         value = self._entity_value(CONF_ODOMETER_ENTITY)
         if value is not None and value > 0:
-            if (
-                self._num(CONF_START_ODOMETER) <= 0
-                and self.data.get("auto_start_odometer") is None
-            ):
+            if self._num(CONF_START_ODOMETER) <= 0 and self.data.get("auto_start_odometer") is None:
                 # No start km configured: the first reading is the baseline.
                 self.data["auto_start_odometer"] = value
             last = self.data.get("last_odometer")
@@ -296,8 +291,8 @@ class CarCostTracker:
     def current_odometer(self) -> float | None:
         values = [self.data.get("last_odometer")]
         values += [e.get("odometer") for e in self.data["log"]]
-        values = [v for v in values if isinstance(v, (int, float)) and v > 0]
-        return max(values) if values else None
+        numbers = [float(v) for v in values if isinstance(v, (int, float)) and v > 0]
+        return max(numbers) if numbers else None
 
     def km_driven(self) -> float:
         odo = self.current_odometer()
@@ -318,8 +313,7 @@ class CarCostTracker:
         if delta > 0:
             self.data["ref_km"] = km
             self.data["ref_cost"] = (
-                self.data.get("ref_cost", 0.0)
-                + delta * litres_per_km * self.ref_fuel_price
+                self.data.get("ref_cost", 0.0) + delta * litres_per_km * self.ref_fuel_price
             )
 
     @callback
@@ -327,9 +321,7 @@ class CarCostTracker:
         """Recompute derived values after the options changed."""
         km = self.km_driven()
         self.data["ref_km"] = km
-        self.data["ref_cost"] = (
-            km * self._num(CONF_REF_CONSUMPTION) / 100 * self.ref_fuel_price
-        )
+        self.data["ref_cost"] = km * self._num(CONF_REF_CONSUMPTION) / 100 * self.ref_fuel_price
         self._save()
         self._notify()
 
@@ -403,7 +395,9 @@ class CarCostTracker:
 
     def update(self, item_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
         """Change an entry. Fields that do not fit its kind are ignored."""
-        item = next((e for e in self.data["log"] if e["id"] == item_id), None)
+        item: dict[str, Any] | None = next(
+            (e for e in self.data["log"] if e["id"] == item_id), None
+        )
         if item is None:
             return None
         allowed = set(EDITABLE_COMMON) | (
@@ -430,9 +424,7 @@ class CarCostTracker:
 
     def _remove_image(self, media_id: str, keep_for: str | None = None) -> None:
         """Delete a photo, unless another entry still uses it."""
-        if any(
-            e.get("image") == media_id and e["id"] != keep_for for e in self.data["log"]
-        ):
+        if any(e.get("image") == media_id and e["id"] != keep_for for e in self.data["log"]):
             return
         path = image_path(self.hass, media_id)
         if path is not None:
@@ -467,9 +459,7 @@ class CarCostTracker:
         fuel_cost = sum(e["total_cost"] for e in refuels)
         home_kwh = self.data.get("home_kwh", 0.0)
         el_kwh = sum(e["kwh"] for e in charges) + home_kwh
-        el_cost = sum(e["total_cost"] for e in charges) + self.data.get(
-            "home_cost", 0.0
-        )
+        el_cost = sum(e["total_cost"] for e in charges) + self.data.get("home_cost", 0.0)
         energy_cost = fuel_cost + el_cost
         ref_cost = self.data.get("ref_cost", 0.0)
 
@@ -578,9 +568,12 @@ class CarCostTracker:
             return buckets.setdefault(
                 day[:7],
                 {
-                    "fuel_cost": 0.0, "fuel_liters": 0.0,
-                    "public_cost": 0.0, "public_kwh": 0.0,
-                    "home_cost": 0.0, "home_kwh": 0.0,
+                    "fuel_cost": 0.0,
+                    "fuel_liters": 0.0,
+                    "public_cost": 0.0,
+                    "public_kwh": 0.0,
+                    "home_cost": 0.0,
+                    "home_kwh": 0.0,
                 },
             )
 
@@ -606,7 +599,7 @@ class CarCostTracker:
         if months > 0:
             names = names[-months:]
 
-        out = []
+        out: list[dict[str, Any]] = []
         for name in names:
             b = bucket(name + "-01")
             before = [p for p in daily if p["date"][:7] < name]

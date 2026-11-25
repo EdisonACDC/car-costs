@@ -29,7 +29,9 @@ class CarCostSensorDescription(SensorEntityDescription):
     value: Callable[[Summary], Any]
 
 
-def _money(key: str, value: Callable[[Summary], Any], icon: str, total: bool = False) -> CarCostSensorDescription:
+def _money(
+    key: str, value: Callable[[Summary], Any], icon: str, total: bool = False
+) -> CarCostSensorDescription:
     return CarCostSensorDescription(
         key=key,
         translation_key=key,

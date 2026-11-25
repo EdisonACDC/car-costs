@@ -7,13 +7,17 @@ const KEY = "car_costs_tokens";
 
 let tokens = JSON.parse(localStorage.getItem(KEY) || "null");
 
+/** Inside Home Assistant's panel the page is an iframe of the panel's window: no own login. */
+export const EMBEDDED = new URLSearchParams(location.search).get("embed") === "1";
+const hassOf = () => { try { return window.parent.__carCostsHass || null; } catch { return null; } };
+
 export class LoginRequired extends Error {}
 export class Unreachable extends Error {}
 export class ApiError extends Error {
   constructor(message, status, body) { super(message); this.status = status; this.body = body; }
 }
 
-export const hasTokens = () => !!tokens;
+export const hasTokens = () => (EMBEDDED ? !!hassOf() : !!tokens);
 
 export function login() {
   const state = Math.random().toString(36).slice(2);
@@ -72,6 +76,14 @@ async function accessToken() {
 function forget() { localStorage.removeItem(KEY); tokens = null; }
 
 export async function api(path, options = {}) {
+  if (EMBEDDED) {
+    const hass = hassOf();
+    if (!hass) throw new LoginRequired();
+    let res;
+    try { res = await hass.fetchWithAuth(path, options); } catch { throw new Unreachable(); }
+    if (res.status === 401) throw new LoginRequired();
+    return res;
+  }
   const token = await accessToken();
   let res;
   try {

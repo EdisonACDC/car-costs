@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 import re
+import uuid
+from pathlib import Path
 from typing import Any
 from urllib.parse import unquote
-import uuid
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
@@ -39,10 +39,22 @@ STRUCTURE: dict[str, Any] = {
         "required": True,
         "selector": {"select": {"options": [KIND_REFUEL, KIND_CHARGE]}},
     },
-    "liters": {"description": "Litres of fuel", "selector": {"number": {"min": 0, "max": 500, "step": 0.01, "mode": "box"}}},
-    "kwh": {"description": "kWh charged", "selector": {"number": {"min": 0, "max": 500, "step": 0.001, "mode": "box"}}},
-    "total_cost": {"description": "Total paid for fuel/energy in EUR", "selector": {"number": {"min": 0, "max": 2000, "step": 0.01, "mode": "box"}}},
-    "price_per_unit": {"description": "EUR per litre or per kWh", "selector": {"number": {"min": 0, "max": 10, "step": 0.001, "mode": "box"}}},
+    "liters": {
+        "description": "Litres of fuel",
+        "selector": {"number": {"min": 0, "max": 500, "step": 0.01, "mode": "box"}},
+    },
+    "kwh": {
+        "description": "kWh charged",
+        "selector": {"number": {"min": 0, "max": 500, "step": 0.001, "mode": "box"}},
+    },
+    "total_cost": {
+        "description": "Total paid for fuel/energy in EUR",
+        "selector": {"number": {"min": 0, "max": 2000, "step": 0.01, "mode": "box"}},
+    },
+    "price_per_unit": {
+        "description": "EUR per litre or per kWh",
+        "selector": {"number": {"min": 0, "max": 10, "step": 0.001, "mode": "box"}},
+    },
     "date": {"description": "Date YYYY-MM-DD", "selector": {"text": {}}},
     "station": {"description": "Station name and town", "selector": {"text": {}}},
     "fuel": {"description": "Fuel product name", "selector": {"text": {}}},
@@ -73,7 +85,7 @@ def image_path(hass: HomeAssistant, media_id: Any) -> Path | None:
     """Local file of a stored receipt photo, only if inside <media>/car_costs."""
     if not isinstance(media_id, str) or not media_id.startswith(MEDIA_PREFIX):
         return None
-    key, _, rel = media_id[len(MEDIA_PREFIX):].partition("/")
+    key, _, rel = media_id[len(MEDIA_PREFIX) :].partition("/")
     dirs = hass.config.media_dirs or {"local": hass.config.path("media")}
     if key not in dirs or not rel:
         return None
@@ -128,9 +140,7 @@ async def async_read_receipt(
         "task_name": "Car Costs receipt",
         "instructions": INSTRUCTIONS,
         "structure": STRUCTURE,
-        "attachments": [
-            {"media_content_id": media_content_id, "media_content_type": mime}
-        ],
+        "attachments": [{"media_content_id": media_content_id, "media_content_type": mime}],
     }
     if ai_task_entity:
         payload["entity_id"] = ai_task_entity
