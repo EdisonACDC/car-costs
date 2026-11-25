@@ -1,4 +1,4 @@
-<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/dark_logo.png"><img src="docs/images/logo.png" alt="Car Costs" width="420"></picture>
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/dark_logo.png"><img src="docs/images/logo.png" alt="Car Costs" width="420"></picture></p>
 
 <p align="center">
   <a href="https://github.com/EdisonACDC/car-costs/releases"><img alt="Downloads" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FEdisonACDC%2Fcar-costs%2Fbadges%2Fdownloads.json&cacheSeconds=3600&label=Downloads"></a>

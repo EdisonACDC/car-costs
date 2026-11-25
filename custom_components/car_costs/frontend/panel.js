@@ -16,9 +16,10 @@ class CarCostsPanel extends HTMLElement {
         :host{display:block;height:100%;background:var(--primary-background-color,#0c3b2e)}
         .wrap{display:flex;flex-direction:column;height:100%}
         .bar{display:none;align-items:center;gap:4px;height:var(--header-height,56px);padding:0 4px;flex:none;
-          background:var(--app-header-background-color,var(--primary-color));color:var(--app-header-text-color,#fff);box-sizing:border-box}
+          background:var(--app-header-background-color,var(--primary-color));color:var(--app-header-text-color,#fff);box-sizing:border-box;
+          font-family:var(--ha-font-family-body,Roboto,"Noto",sans-serif)}
         :host([narrow]) .bar{display:flex}
-        .bar button{width:48px;height:48px;border:0;background:none;color:inherit;font-size:24px;cursor:pointer;border-radius:50%}
+        .bar button{width:48px;height:48px;border:0;background:none;color:inherit;font-family:inherit;font-size:24px;cursor:pointer;border-radius:50%}
         .bar b{font-size:20px;font-weight:500}
         iframe{flex:1;width:100%;border:0;display:block;background:transparent;color-scheme:normal}
       </style>
