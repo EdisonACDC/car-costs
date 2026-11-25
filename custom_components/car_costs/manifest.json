@@ -1,10 +1,20 @@
 {
   "domain": "car_costs",
   "name": "Car Costs",
-  "codeowners": ["@EdisonACDC"],
+  "after_dependencies": [
+    "ai_task"
+  ],
+  "codeowners": [
+    "@EdisonACDC"
+  ],
   "config_flow": true,
-  "dependencies": ["http", "frontend", "panel_custom", "websocket_api", "media_source"],
-  "after_dependencies": ["ai_task"],
+  "dependencies": [
+    "http",
+    "frontend",
+    "panel_custom",
+    "websocket_api",
+    "media_source"
+  ],
   "documentation": "https://github.com/EdisonACDC/car-costs",
   "integration_type": "service",
   "iot_class": "calculated",
