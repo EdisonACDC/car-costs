@@ -1,3 +1,5 @@
+<picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/dark_logo.png"><img src="docs/images/logo.png" alt="Car Costs" width="420"></picture>
+
 # Car Costs – Costi Auto per Home Assistant
 
 Quanto ti costa davvero la nuova auto (benzina + corrente) e quanto avresti speso con la vecchia per gli stessi km? Car Costs lo calcola ogni giorno e ti dice quando l'acquisto si ripaga.
