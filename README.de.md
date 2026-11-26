@@ -48,7 +48,7 @@
 - **Amortisation**: Investition = Preis + Zusatzkosten − Verkauf des alten Autos; zurückgeholter Anteil und voraussichtliches Datum des Break-even.
 - **Diagramme**: Ausgaben pro Monat, kumulierte Ersparnis, €/100 km, Benzin und Strom.
 - **Anteil elektrisch gefahrener Kilometer** (Schätzung), wenn du den Stromverbrauch angibst.
-- **Handy-Web-App** (installierbar, offline mit der letzten Übersicht) und die Lovelace-Karte `car-costs-card`.
+- **Handy-App** (mit QR-Code verbunden, ohne Home-Assistant-Konto; installierbar, offline mit der letzten Übersicht) und die Lovelace-Karte `car-costs-card`.
 - Italienisch, Deutsch und Englisch, nach der Sprache von Home Assistant.
 
 ## Installation
@@ -90,18 +90,19 @@ Felder sind rot, und drückst **Speichern**.
   keinem Eintrag landen, werden nach 24 Stunden gelöscht.
 - Ohne KI bittet dich die App, das Formular von Hand auszufüllen.
 
-## Web-App auf dem Handy
+## App auf dem Handy
 
-Unter **Einstellungen → App auf dem Handy** zeigt das Panel den Link der Web-App, einen **QR-Code** (mit dem Handy scannen) sowie die Knöpfe **Kopieren** und **Öffnen**. Der Link nutzt deine externe Adresse (Nabu Casa oder externe URL von Home Assistant); mit nur einer lokalen Adresse warnt er, dass es nur zu Hause funktioniert. Dasselbe Feld erscheint einmal nach dem Hinzufügen des ersten Autos.
+Das Handy braucht **kein** Home-Assistant-Konto und sieht nie einen Home-Assistant-Login. Du verbindest es im Panel, so wie Family Hub einen Gast einlädt:
 
-Dieselbe App fürs Handy, außerhalb der Home-Assistant-App: Öffne `https://<dein-home-assistant>/car-costs`
-(auch eine Nabu-Casa-Adresse funktioniert), melde dich mit deinem Home-Assistant-Benutzer an und füge sie dem Home-Bildschirm hinzu:
+1. Drücke in **Costi Auto → Einstellungen → App auf dem Handy** auf **Handy verbinden**. Gib einen Namen ein (zum Beispiel „iPhone Marius“), wähle die sichtbaren Autos und die Rechte: *Nur ansehen*, *Ansehen und hinzufügen* oder *Ansehen, hinzufügen und ändern*.
+2. Es erscheint ein **QR-Code** (mit **Kopieren** und **Teilen**). Scanne ihn mit dem Handy. Der Link gilt einmal und 24 Stunden; der Code steht hinter dem `#` der Adresse und landet deshalb in keinem Log.
+3. Das Handy tauscht ihn gegen ein eigenes Token (256 Bit, in Home Assistant nur als SHA-256-Hash gespeichert, alle 30 Tage erneuert) und öffnet die App. Das war's.
 
-- **iPhone**: Safari → Teilen → *Zum Home-Bildschirm*
-- **Android**: Chrome → ⋮ → *App installieren*
-
-Sie funktioniert auch nur im lokalen Netz, und die letzte Übersicht bleibt offline verfügbar. Bei mehreren Autos:
-`/car-costs?entry=<config_entry_id>`.
+- **iPhone:** Öffnet sich der Link in Safari, erklärt die App: Teilen → *Zum Home-Bildschirm*, dann das Symbol öffnen. Die Verbindung ist schon darin.
+- **Android:** Chrome → ⋮ → *App installieren*.
+- **Verbundene Handys** stehen in der Liste im Panel (Name, letzter Zugriff, Rechte). Du kannst eines umbenennen, Rechte und Autos ändern, es trennen (es stoppt sofort) oder ein *neues Handy* an seiner Stelle verbinden.
+- Ein Handy bekommt nur die Autos und Aktionen, die du ihm gegeben hast, unter `/api/car_costs/app/…`. Es erhält nie Entitäten, die Konfiguration oder sonst etwas aus Home Assistant. Anfragen sind pro Handy und pro Adresse begrenzt; nach 10 falschen Aktivierungen wird eine Adresse gesperrt.
+- Ohne externe Adresse (Nabu Casa oder externe URL von Home Assistant) warnt das Panel, dass der Link nur zu Hause funktioniert. Die letzte Übersicht bleibt offline verfügbar.
 
 ## Dienste
 

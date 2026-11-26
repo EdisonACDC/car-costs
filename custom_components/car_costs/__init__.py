@@ -24,7 +24,6 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.http import HomeAssistantView
-from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -59,6 +58,7 @@ from .const import (
     STORAGE_VERSION,
     VERSION,
 )
+from .network import app_link
 from .panel import async_sync_panel
 from .receipt import MIME_BY_SUFFIX, async_read_receipt, async_save_image, image_path
 from .tracker import CarCostTracker, parse_day
@@ -132,7 +132,14 @@ SCAN_SCHEMA = vol.Schema(
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register services, the upload endpoint and the card."""
+    from .devices import COMMANDS, async_setup_devices  # noqa: PLC0415
+    from .phone_api import register_views  # noqa: PLC0415
+
     _register_services(hass)
+    await async_setup_devices(hass)
+    register_views(hass)
+    for command in COMMANDS:
+        websocket_api.async_register_command(hass, command)
     websocket_api.async_register_command(hass, ws_entries)
     hass.http.register_view(ReceiptUploadView())
     hass.http.register_view(SummaryView())
@@ -337,23 +344,6 @@ def ws_entries(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str,
     connection.send_result(msg["id"], overview(tracker, msg["limit"]))
 
 
-def app_link(hass: HomeAssistant) -> dict[str, Any]:
-    """Address of the phone web app: the external one (Nabu Casa / external_url) if there is one."""
-    for external in (True, False):
-        try:
-            base = get_url(
-                hass,
-                allow_internal=not external,
-                allow_external=external,
-                allow_cloud=external,
-                prefer_external=external,
-            )
-        except NoURLAvailableError:
-            continue
-        return {"url": f"{base.rstrip('/')}/car-costs", "external": external}
-    return {"url": None, "external": False}
-
-
 def overview(tracker: CarCostTracker, limit: int = 50) -> dict[str, Any]:
     """Everything the card and the web app show."""
     s = tracker.summary()
@@ -483,10 +473,35 @@ class AppRedirectView(HomeAssistantView):
     requires_auth = False
 
     async def get(self, request: web.Request) -> web.Response:
-        raise web.HTTPFound(f"{FRONTEND_URL}/app/index.html")
+        query = f"?{request.query_string}" if request.query_string else ""
+        raise web.HTTPFound(f"{FRONTEND_URL}/app/index.html{query}")
 
 
 # ----------------------------------------------------------------- upload view
+async def read_receipt_upload(
+    hass: HomeAssistant, request: web.Request, tracker: CarCostTracker
+) -> tuple[dict[str, Any], int]:
+    """Save the photo of an upload and let the AI read it. Returns (body, status)."""
+    reader = await request.multipart()
+    field = await reader.next()
+    if not isinstance(field, BodyPartReader) or field.name != "file":
+        return {"message": "Missing file"}, 400
+    content = bytearray()
+    while chunk := await field.read_chunk():
+        content.extend(chunk)
+        if len(content) > MAX_UPLOAD:
+            return {"message": "File too large"}, 413
+    auto_add = request.query.get("auto_add") == "1"
+    media_id, mime = await async_save_image(
+        hass, bytes(content), field.filename or "receipt.jpg", tracker.entry.entry_id
+    )
+    try:
+        result = await async_scan(hass, tracker, media_id, mime, auto_add)
+    except HomeAssistantError as err:
+        return {"error": str(err), "image": media_id}, 422
+    return result, 200
+
+
 class ReceiptUploadView(HomeAssistantView):
     """POST a receipt photo from the card; returns what the AI read."""
 
@@ -500,21 +515,5 @@ class ReceiptUploadView(HomeAssistantView):
             tracker = get_tracker(hass, entry_id)
         except ServiceValidationError:
             return self.json_message("Car Costs entry not found", 404)
-        reader = await request.multipart()
-        field = await reader.next()
-        if not isinstance(field, BodyPartReader) or field.name != "file":
-            return self.json_message("Missing file", 400)
-        content = bytearray()
-        while chunk := await field.read_chunk():
-            content.extend(chunk)
-            if len(content) > MAX_UPLOAD:
-                return self.json_message("File too large", 413)
-        auto_add = request.query.get("auto_add") == "1"
-        media_id, mime = await async_save_image(
-            hass, bytes(content), field.filename or "receipt.jpg", tracker.entry.entry_id
-        )
-        try:
-            result = await async_scan(hass, tracker, media_id, mime, auto_add)
-        except HomeAssistantError as err:
-            return self.json({"error": str(err), "image": media_id}, 422)
-        return self.json(result)
+        body, status = await read_receipt_upload(hass, request, tracker)
+        return self.json(body, status)

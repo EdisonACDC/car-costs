@@ -231,7 +231,7 @@ export function openDetail(m) {
     <div class="detail-amount">${eur(e.total_cost, 2)}</div>
     <div id="receipt"></div>
     <div class="kv">${rows.map(([k, val]) => `<div><span>${k}</span><span>${val}</span></div>`).join("")}</div>
-    <div class="btns two"><button class="btn ghost" id="edit">✏️ ${esc(t("edit"))}</button><button class="btn danger" id="del">🗑️ ${esc(t("delete"))}</button></div>`);
+    ${ctx.state.perm === "edit" ? `<div class="btns two"><button class="btn ghost" id="edit">✏️ ${esc(t("edit"))}</button><button class="btn danger" id="del">🗑️ ${esc(t("delete"))}</button></div>` : ""}`);
   if (e.has_image) {
     receiptUrl(e.id).then((url) => {
       if (!url) return;
@@ -239,6 +239,7 @@ export function openDetail(m) {
       $("#receipt img", sheet.el).onclick = () => viewImage(url);
     });
   }
+  if (ctx.state.perm === "edit") {
   $("#edit", sheet.el).onclick = () => openForm(sheet, {
     mode: "edit", id: e.id, kind: e.kind, location: e.location || "public", image: e.image,
     values: { date: e.date, qty: refuel ? e.liters : e.kwh, total: e.total_cost, km: e.odometer ?? "", station: e.station || "", note: e.note || "" },
@@ -254,4 +255,5 @@ export function openDetail(m) {
     toast(t("deleted"));
     await ctx.refresh();
   };
+  }
 }

@@ -25,6 +25,7 @@ async function panel({ w, h, dark, narrow, lang = "it", scale = 2 }) {
   const context = await browser.newContext({
     viewport: { width: w, height: h }, deviceScaleFactor: scale, isMobile: narrow, hasTouch: narrow, locale: `${lang}-${lang.toUpperCase()}`,
   });
+  await context.addInitScript(() => localStorage.setItem("car_costs_welcome", "1"));
   const page = await context.newPage();
   await page.goto(`${fake.url}/host?dark=${dark ? 1 : 0}&narrow=${narrow ? 1 : 0}&lang=${lang}`);
   const frame = page.frameLocator("iframe");

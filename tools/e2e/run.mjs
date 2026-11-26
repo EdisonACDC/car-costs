@@ -4,7 +4,7 @@ import { chromium } from "playwright";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { startFake } from "./fake_ha.mjs";
+import { startFake, LINK_CODE, DEVICE_TOKEN } from "./fake_ha.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.join(here, "shots");
@@ -13,6 +13,15 @@ fs.mkdirSync(OUT, { recursive: true });
 let failures = 0;
 const ok = (cond, msg) => { if (cond) console.log(`  ok   ${msg}`); else { failures++; console.log(`  FAIL ${msg}`); } };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// The phone opens the link made in the panel: no Home Assistant login. On a desktop browser the app
+// then offers to be installed; the tests continue in the browser.
+async function openApp(page) {
+  await page.goto(`${fake.url}/car-costs#c=${LINK_CODE}`);
+  await page.waitForSelector(".hero, #install-go");
+  if (await page.locator("#install-go").count()) await page.click("#install-go");
+  await page.waitForSelector(".hero");
+}
 
 const fake = await startFake();
 const browser = await chromium.launch();
@@ -62,14 +71,25 @@ for (const scheme of ["light", "dark"]) {
   const S = (n) => `${scheme}-${n}`;
   const receipt = await receiptJpeg(context);
 
-  // login
+  // no link yet: the app asks for one, it never sends the phone to Home Assistant's login
   await page.goto(`${fake.url}/car-costs`);
-  await page.waitForSelector("#go");
-  await shot(page, S("00-login"));
-  ok(await page.locator("#go").innerText() === "Accedi a Home Assistant", "login screen in Italian");
-  await page.click("#go");
+  await page.waitForSelector("#paste");
+  await shot(page, S("00-link"));
+  ok(await page.locator(".center h1").innerText() === "Serve un collegamento", "no link: \"Serve un collegamento\" in Italian");
+  ok(!fake.calls.some((c) => c.action === "oauth"), "no redirect to Home Assistant's login");
+  await page.fill("#pasted", "not a link");
+  await page.click("#paste button");
+  await page.waitForSelector(".center p");
+  ok((await page.locator(".center p").innerText()).includes("non è valido"), "a wrong paste says the link is not valid");
+  await page.fill("#pasted", `${fake.url}/car-costs#c=${LINK_CODE}`);
+  await page.click("#paste button");
+  await page.waitForSelector("#install-go");
+  await shot(page, S("00-install"));
+  await page.click("#install-go");
   await page.waitForSelector(".hero");
-  ok(!page.url().includes("code="), "code removed from the address after login");
+  ok(!page.url().includes(LINK_CODE), "the link's code is out of the address once used");
+  ok(await page.evaluate(([t]) => localStorage.getItem("car_costs_device") === t, [DEVICE_TOKEN]), "the phone keeps its own token");
+  ok(fake.calls.filter((c) => c.action === "activate").length === 1 && !fake.calls.some((c) => c.action === "oauth"), "linked with one activation, no Home Assistant login");
   await settle(page);
 
   // overview
@@ -149,7 +169,8 @@ for (const scheme of ["light", "dark"]) {
   await settle(page, 300);
   await shot(page, S("07-settings"));
   ok((await page.locator(".group").first().innerText()).includes("0,320"), "electricity price read-only");
-  ok((await page.locator('a[href$="/config/integrations/integration/car_costs"]').count()) === 1, "link to the integration options");
+  ok((await page.locator('a[href$="/config/integrations/integration/car_costs"]').count()) === 0, "the phone has no link into Home Assistant");
+  ok(await page.locator("#phones").count() === 0, "the phone has no link-a-phone section");
 
   // + sheet
   await page.click('[data-tab="overview"]');
@@ -252,10 +273,7 @@ for (const scheme of ["light", "dark"]) {
 {
   console.log("\n== offline / languages / pwa ==");
   const { context, page, errors } = await newPage("dark");
-  await page.goto(`${fake.url}/car-costs`);
-  await page.waitForSelector("#go");
-  await page.click("#go");
-  await page.waitForSelector(".hero");
+  await openApp(page);
   await page.evaluate(() => navigator.serviceWorker.ready);
   await settle(page, 800);
   const cdp = await context.newCDPSession(page);
@@ -277,8 +295,9 @@ for (const scheme of ["light", "dark"]) {
 
   for (const [loc, expect] of [["de-DE", "Übersicht"], ["en-GB", "Overview"]]) {
     const p = await newPage("light", loc);
-    await p.page.goto(`${fake.url}/car-costs`);
-    await p.page.click("#go");
+    await p.page.goto(`${fake.url}/car-costs#c=${LINK_CODE}`);
+    await p.page.waitForSelector(".hero, #install-go");
+    if (await p.page.locator("#install-go").count()) await p.page.click("#install-go");
     await p.page.waitForSelector(".hero");
     await settle(p.page);
     await shot(p.page, `light-16-${loc}`);
@@ -287,17 +306,64 @@ for (const scheme of ["light", "dark"]) {
   }
 }
 
-// logout revokes
+// "Esci" forgets the token on the phone; a revoked phone is sent back to the link screen
 {
   const { context, page } = await newPage("light");
-  await page.goto(`${fake.url}/car-costs`);
-  await page.click("#go");
-  await page.waitForSelector(".hero");
+  await openApp(page);
   await page.click('[data-tab="settings"]');
   await page.click("#logout");
-  await page.waitForSelector("#go");
-  ok(fake.calls.some((c) => c.action === "revoke"), "logout revokes the token");
-  ok(await page.evaluate(() => !localStorage.getItem("car_costs_tokens")), "tokens removed from the phone");
+  await page.waitForSelector("#paste");
+  ok(await page.evaluate(() => !localStorage.getItem("car_costs_device")), "the token is removed from the phone");
+  await openApp(page);
+  fake.station.revoked = true;                 // unlinked from the panel
+  await page.reload();
+  await page.waitForSelector("#paste");
+  ok((await page.locator(".center p").innerText()).includes("scollegato"), "an unlinked phone is told to ask for a new link");
+  ok(await page.evaluate(() => !localStorage.getItem("car_costs_device")), "an unlinked phone forgets its token");
+  fake.station.revoked = false;
+  await context.close();
+}
+
+// permissions: "view only" has no + and no edit/delete
+{
+  const { context, page } = await newPage("light");
+  fake.station.perm = "view";
+  await openApp(page);
+  ok(await page.locator("#fab").evaluate((e) => getComputedStyle(e).visibility) === "hidden", "view only: no + button");
+  await page.locator('[data-tab="log"]').click();
+  await page.locator('[data-open="e1"]').click();
+  await page.waitForSelector(".sheet.in");
+  ok(await page.locator("#edit").count() === 0 && await page.locator("#del").count() === 0, "view only: no edit or delete in the details");
+  await page.keyboard.press("Escape");
+  fake.station.perm = "add";
+  await page.reload(); await page.waitForSelector(".hero");
+  await page.locator('[data-tab="log"]').click();
+  await page.locator('[data-open="e1"]').click();
+  await page.waitForSelector(".sheet.in");
+  ok(await page.locator("#edit").count() === 0, "add only: cannot edit");
+  fake.station.perm = "edit";
+  await context.close();
+}
+
+// an iPhone opening the link in Safari: the link waits in the address for the Home Screen icon
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "it-IT",
+    userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1" });
+  const page = await context.newPage();
+  fake.calls.length = 0;
+  await page.goto(`${fake.url}/car-costs#c=${LINK_CODE}`);
+  await page.waitForSelector(".center h1");
+  ok(await page.locator(".center h1").innerText() === "Metti l'app sulla schermata Home", "iPhone in Safari: how to add the app to the Home Screen");
+  ok(!fake.calls.some((c) => c.action === "activate"), "iPhone in Safari: the link is not used up in the browser");
+  ok(page.url().includes(`?c=${LINK_CODE}`) && !page.url().includes("#c="), "iPhone: the link moves to ?c= for the icon");
+  await wait(900);
+  await shot(page, "light-00-install-iphone");
+  // the Home Screen icon opens that address as an installed app
+  await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  await page.reload();
+  await page.waitForSelector(".hero");
+  ok(fake.calls.filter((c) => c.action === "activate").length === 1, "iPhone icon: the app uses the link");
+  ok(!page.url().includes(LINK_CODE), "iPhone icon: the code leaves the address");
   await context.close();
 }
 
@@ -321,7 +387,7 @@ for (const scheme of ["light", "dark"]) {
       const ph = await page.locator("car-costs-panel").evaluate((e) => e.getBoundingClientRect().height);
       ok(Math.abs(ph - h) < 2, `${tag}: panel fills the screen height (${Math.round(ph)} of ${h})`);
       await shot(page, tag);
-      ok(!fake.calls.some((c) => c.path === "/auth/token"), `${tag}: no login, no token request`);
+      ok(!fake.calls.some((c) => c.action === "oauth"), `${tag}: no login, no token request`);
       ok(await page.evaluate(() => window.__fetches > 0), `${tag}: calls go through hass.fetchWithAuth`);
       // the phone's colour scheme is the opposite of Home Assistant's: the panel must follow Home Assistant
       const theme = await frame.locator("html").evaluate((e) => e.dataset.theme);
@@ -340,14 +406,10 @@ for (const scheme of ["light", "dark"]) {
       await frame.locator('[data-tab="settings"]').click();
       await wait(400);
       ok(await frame.locator("#logout").count() === 0, `${tag}: no log-out button inside Home Assistant`);
-      // phone app section: link, QR drawn from the bundled library, copy and open buttons
-      await frame.locator(".phone .qr svg").waitFor({ timeout: 5000 });
-      ok(await frame.locator(".phone .link").innerText() === "https://demo.ui.nabu.casa/car-costs", `${tag}: phone section shows the external link`);
-      ok(await frame.locator(".phone .btn", { hasText: /Apri/ }).getAttribute("href") === "https://demo.ui.nabu.casa/car-costs", `${tag}: "Apri" opens the link`);
-      if (name === "phone" && scheme === "light") { await frame.locator(".phone .qr").scrollIntoViewIfNeeded(); await wait(300); await shot(page, "panel-phone-light-settings-phone"); }
-      await frame.locator("[data-copy]").click(); await wait(200);
-      ok(await frame.locator("#toast.in").count() === 1, `${tag}: "Copia" confirms with a toast`);
-      ok(await frame.locator(".phone .steps li").count() === 2, `${tag}: iPhone and Android steps`);
+      // phone app: the linked phones and the button to link a new one
+      await frame.locator("#phones .dev").first().waitFor({ timeout: 5000 });
+      ok((await frame.locator("#phones .dev").first().innerText()).includes("iPhone Marius"), `${tag}: linked phones listed`);
+      if (name === "phone" && scheme === "light") { await frame.locator("#phones").scrollIntoViewIfNeeded(); await wait(300); await shot(page, "panel-phone-light-settings-phone"); }
       // the log always opens on "All", even after another filter was used
       await frame.locator('[data-tab="log"]').click(); await wait(200);
       ok(await frame.locator(".chip.on").getAttribute("data-filter") === "all", `${tag}: log opens on "All"`);
@@ -367,20 +429,69 @@ for (const scheme of ["light", "dark"]) {
       await context.close();
     }
   }
-  // first car: the welcome sheet with the phone app, once
+  // first car: the welcome sheet offers to link a phone, once
   {
     fake.reset();
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "it-IT" });
     const page = await context.newPage();
     await page.goto(`${fake.url}/host?dark=0&narrow=0`);
     const frame = page.frameLocator("iframe");
-    await frame.locator(".sheet .qr svg").waitFor({ timeout: 10000 });
-    ok(await frame.locator(".sheet .link").count() === 1, "welcome: sheet with the phone link after the first car");
+    await frame.locator("#hello-go").waitFor({ timeout: 10000 });
     await wait(600); await shot(page, "panel-welcome-phone");
-    await frame.locator(".sheet .x").click(); await wait(600);
+    await frame.locator("#hello-go").click();
+    await frame.locator("#ph-go").waitFor();
+    ok(true, "welcome: the button opens the link-a-phone form");
+    await frame.locator(".sheet.in .x").click(); await wait(700);
     ok(await frame.locator(".sheet").count() === 0, "welcome: ✕ closes it");
     await page.reload(); await frame.locator(".hero").waitFor({ timeout: 10000 }); await wait(800);
     ok(await frame.locator(".sheet").count() === 0, "welcome: shown only once");
+
+    // link a phone: name, cars, permission -> QR + copy
+    fake.calls.length = 0;
+    await frame.locator('[data-tab="settings"]').click();
+    await frame.locator('[data-ph="connect"]').click();
+    await frame.locator("#ph-name").fill("iPad Anna");
+    await frame.locator('input[name="ph-car"][value="car2"]').uncheck();
+    await frame.locator('input[name="ph-perm"][value="view"]').check();
+    await wait(400); await shot(page, "panel-connect-form");
+    await frame.locator("#ph-go").click();
+    await frame.locator(".sheet .qr svg").waitFor();
+    const made = fake.calls.find((c) => c.ws === "car_costs/phone_link");
+    ok(made && made.msg.name === "iPad Anna" && made.msg.permission === "view" && made.msg.entries.join() === "car1", "link made with the name, the car and the permission chosen");
+    await wait(400); await shot(page, "panel-connect-qr");
+    await frame.locator("#ph-copy").click(); await wait(200);
+    ok(await frame.locator("#toast.in").count() === 1, "Copy confirms with a toast");
+    await frame.locator('.sheet [data-close]').last().click(); await wait(600);
+    ok((await frame.locator("#phones").innerText()).includes("Waiting") || (await frame.locator("#phones").innerText()).includes("In attesa"), "the unused link is listed as waiting");
+
+    // a linked phone: rename, change permission, unlink
+    await frame.locator('[data-ph="device"]').first().click();
+    await frame.locator("#ph-save").waitFor();
+    await wait(400); await shot(page, "panel-device-sheet");
+    await frame.locator("#ph-name").fill("iPhone di Marius");
+    await frame.locator('input[name="ph-perm"][value="add"]').check();
+    await frame.locator("#ph-save").click(); await wait(500);
+    const upd = fake.calls.find((c) => c.ws === "car_costs/phone_update");
+    ok(upd && upd.msg.name === "iPhone di Marius" && upd.msg.permission === "add", "rename and permission change are sent");
+    await frame.locator('[data-ph="device"]').first().click();
+    await frame.locator("#ph-new").click();
+    await frame.locator("#ph-go").click();
+    await frame.locator(".sheet .qr svg").waitFor();
+    ok(fake.calls.filter((c) => c.ws === "car_costs/phone_link").at(-1).msg.replaces === "d1", "\"new phone\" makes a link that replaces the old one");
+    await frame.locator('.sheet [data-close]').last().click(); await wait(600);
+    await frame.locator('[data-ph="device"]').first().click();
+    await frame.locator("#ph-unlink").click();
+    await frame.locator(".dialog [data-r='1']").click(); await wait(500);
+    ok(fake.calls.some((c) => c.ws === "car_costs/phone_remove" && c.msg.device_id === "d1"), "unlink removes the phone");
+    ok((await frame.locator("#phones").innerText()).match(/Nessun telefono/), "the list is empty after unlinking");
+
+    // no external address: warns that the link works at home only
+    fake.station.app.external = false;
+    await frame.locator('[data-ph="connect"]').click();
+    await frame.locator("#ph-name").fill("Local");
+    await frame.locator("#ph-go").click();
+    await frame.locator(".sheet .qr svg").waitFor();
+    ok(await frame.locator(".sheet .warn").count() === 1, "without an external address the link warns it works at home only");
     await context.close();
   }
   // no car yet: welcome screen with the button that opens the setup

@@ -48,7 +48,7 @@
 - **Payback**: investment = price + extra costs − sale of the old car; share recovered and expected break-even date.
 - **Charts**: monthly spending, cumulative savings, €/100 km, petrol and electricity.
 - **Share of electric kilometres** (estimate), if you give the electric consumption.
-- **Phone web app** (installable, works offline with the last summary) and the Lovelace card `car-costs-card`.
+- **Phone app** (linked with a QR code, no Home Assistant account; installable, works offline with the last summary) and the Lovelace card `car-costs-card`.
 - Italian, German and English, from the Home Assistant language.
 
 ## Installation
@@ -89,18 +89,19 @@ for anything missing, and press **Save**.
   entry are deleted after 24 hours.
 - Without an AI the app asks you to fill in the form by hand.
 
-## Phone web app
+## Phone app
 
-In **Settings → Phone app** the panel shows the link of the web app, a **QR code** (scan it with the phone), and **Copy** and **Open** buttons. The link uses your external address (Nabu Casa or Home Assistant's external URL); with only a local address it warns that it works at home only. The same box appears once after you add the first car.
+The phone does **not** need a Home Assistant account and never sees a Home Assistant login. You link it from the panel, the way Family Hub invites a guest:
 
-The same app, for the phone, outside Home Assistant's own app: open `https://<your-home-assistant>/car-costs`
-(a Nabu Casa address works too), sign in with your Home Assistant user, and add it to the Home screen:
+1. In **Costi Auto → Settings → Phone app** press **Link a phone**. Give it a name (for example "iPhone Marius"), choose the cars it can see and what it may do: *View only*, *View and add*, or *View, add and change*.
+2. A **QR code** appears (with **Copy** and **Share**). Scan it with the phone. The link works once and for 24 hours; the code sits after the `#` of the address, so it never reaches a log.
+3. The phone trades it for a token of its own (256 bits, kept in Home Assistant only as a SHA-256 hash, renewed every 30 days) and opens the app. That is all.
 
-- **iPhone**: Safari → Share → *Add to Home Screen*
-- **Android**: Chrome → ⋮ → *Install app*
-
-It works on the local network alone, and the last summary stays available offline. With several cars:
-`/car-costs?entry=<config_entry_id>`.
+- **iPhone:** if the link opens in Safari, the app explains: Share → *Add to Home Screen*, then open the icon. The link is already inside it.
+- **Android:** Chrome → ⋮ → *Install app*.
+- **Linked phones** are listed in the panel (name, last access, permissions). You can rename one, change its permissions or cars, unlink it (it stops at once) or link a *new phone* in its place.
+- A phone only gets the cars and actions it was given, at `/api/car_costs/app/…`. It never receives entities, the configuration or anything else from Home Assistant. Requests are rate-limited per phone and per address, and an address is blocked after 10 wrong activations.
+- Without an external address (Nabu Casa or Home Assistant's external URL) the panel warns that the link works at home only. The last summary stays available offline.
 
 ## Services
 

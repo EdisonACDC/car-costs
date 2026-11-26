@@ -34,10 +34,44 @@ function seed() {
   return { log, homeDaily, daily };
 }
 
+export const LINK_CODE = "Zk3vQ9mT2xB7LwR4nYp8CdA1eHs6JfU0gO5iKaMbNqV";
+export const DEVICE_TOKEN = "dev-token-for-tests";
+
 export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
   let db = seed();
   const calls = [];
-  const station = { ai, aiResult, app: { url: "https://demo.ui.nabu.casa/car-costs", external: true } };
+  const station = { ai, aiResult, app: { url: "https://demo.ui.nabu.casa/car-costs", external: true }, perm: "edit", revoked: false, strictLinks: false };
+  const usedLinks = new Set();
+  const newPhones = () => ({
+    devices: [{ id: "d1", name: "iPhone Marius", label: "iPhone · Safari", permission: "edit", entries: ["car1"], activated_at: new Date().toISOString(), last_seen: new Date().toISOString() }],
+    invites: [],
+  });
+  let phones = newPhones();
+  const ws = (msg) => {
+    const fail = (code) => ({ status: 400, body: { error: { code, message: code } } });
+    if (msg.type === "car_costs/phones") return { body: { ...phones, cars: station.noCars ? [] : [{ id: "car1", title: "Kodiaq iV" }, { id: "car2", title: "Octavia" }] } };
+    if (msg.type === "car_costs/phone_link") {
+      if (!station.app.url) return fail("no_url");
+      const invite = { id: `i${phones.invites.length + 1}`, name: msg.name, entries: msg.entries, permission: msg.permission, expires_at: new Date(Date.now() + 864e5).toISOString(), replaces: msg.replaces || null };
+      phones.invites.push(invite);
+      calls.push({ ws: msg.type, msg });
+      return { body: { link: `${station.app.url}#c=${LINK_CODE}`, external: station.app.external, expires_at: invite.expires_at, invite_id: invite.id } };
+    }
+    if (msg.type === "car_costs/phone_update") {
+      const d = phones.devices.find((x) => x.id === msg.device_id);
+      if (!d) return fail("not_found");
+      for (const k of ["name", "permission", "entries"]) if (k in msg) d[k] = msg[k];
+      calls.push({ ws: msg.type, msg });
+      return { body: phones };
+    }
+    if (msg.type === "car_costs/phone_remove") {
+      if (msg.device_id) phones.devices = phones.devices.filter((x) => x.id !== msg.device_id);
+      if (msg.invite_id) phones.invites = phones.invites.filter((x) => x.id !== msg.invite_id);
+      calls.push({ ws: msg.type, msg });
+      return { body: phones };
+    }
+    return fail("unknown_command");
+  };
 
   const summary = () => {
     const refuels = db.log.filter((e) => e.kind === "refuel"), charges = db.log.filter((e) => e.kind === "charge");
@@ -52,7 +86,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     };
   };
   const overview = () => ({
-    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b3", app: station.app, start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
+    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b4", app: station.app, start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
     electricity_price: 0.32, ref_fuel_price: 1.65, ev_consumption: 22, has_home_meter: true, ai_task_available: station.ai,
     last_station: db.log.filter((e) => e.kind === "refuel" && e.station).sort((a, b) => b.date.localeCompare(a.date))[0]?.station || null,
     summary: summary(), entries: [...db.log].sort((a, b) => (b.date + b.created).localeCompare(a.date + a.created)),
@@ -79,8 +113,13 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://x");
-    const p = url.pathname;
-    if (p === "/car-costs") { res.writeHead(302, { Location: "/car_costs_static/app/index.html" }); return res.end(); }
+    let p = url.pathname;
+    let phone = false;
+    if (p === "/car-costs") { res.writeHead(302, { Location: `/car_costs_static/app/index.html${url.search}` }); return res.end(); }
+    if (p === "/__ws" && req.method === "POST") {
+      const out = ws(JSON.parse((await readBody(req)).toString()));
+      return send(res, out.status || 200, out.body);
+    }
     if (p === "/host") {   // stands in for Home Assistant's frontend: it mounts the panel and gives it `hass`
       const dark = url.searchParams.get("dark") === "1", narrow = url.searchParams.get("narrow") === "1", lang = url.searchParams.get("lang") || "it";
       return send(res, 200, `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:${dark ? "#111" : "#fafafa"}}car-costs-panel{display:block}</style>
@@ -91,28 +130,32 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
         el.addEventListener("hass-toggle-menu", () => {});
         document.body.append(el);
         el.narrow = ${narrow};
-        el.hass = { language: "${lang}", themes: { darkMode: ${dark} }, fetchWithAuth: (path, init = {}) => { window.__fetches = (window.__fetches || 0) + 1; return fetch(path, { ...init, headers: { ...(init.headers || {}), Authorization: "Bearer tok" } }); } };
+        el.hass = { language: "${lang}", themes: { darkMode: ${dark} }, user: { is_admin: true }, callWS: async (msg) => { const r = await fetch("/__ws", { method: "POST", body: JSON.stringify(msg) }); const j = await r.json(); if (!r.ok) throw j.error; return j; }, fetchWithAuth: (path, init = {}) => { window.__fetches = (window.__fetches || 0) + 1; return fetch(path, { ...init, headers: { ...(init.headers || {}), Authorization: "Bearer tok" } }); } };
         </script>`, "text/html");
     }
-    if (p === "/auth/authorize") {
-      const back = new URL(url.searchParams.get("redirect_uri"));
-      back.searchParams.set("code", "code123"); back.searchParams.set("state", url.searchParams.get("state"));
-      res.writeHead(302, { Location: back.toString() }); return res.end();
-    }
-    if (p === "/auth/token" && req.method === "POST") {
-      const form = new URLSearchParams((await readBody(req)).toString());
-      calls.push({ path: p, action: form.get("action") || form.get("grant_type") });
-      if (form.get("action") === "revoke") return send(res, 200, {});
-      return send(res, 200, { access_token: "tok", refresh_token: "ref", expires_in: 1800, token_type: "Bearer" });
-    }
+    if (p.startsWith("/auth/")) { calls.push({ path: p, action: "oauth" }); return send(res, 404, "not found", "text/plain"); }
     if (p.startsWith("/car_costs_static/")) {
       const file = path.join(FRONTEND, p.slice("/car_costs_static/".length));
       if (!file.startsWith(FRONTEND) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, "not found", "text/plain");
       return send(res, 200, fs.readFileSync(file), TYPES[path.extname(file)] || "application/octet-stream");
     }
     if (p.startsWith("/config/")) return send(res, 200, "<h1>Home Assistant</h1>", "text/html");
+    if (p.startsWith("/api/car_costs/app/")) {
+      const rest = p.slice("/api/car_costs/app/".length);
+      if (rest === "activate" && req.method === "POST") {
+        const body = JSON.parse((await readBody(req)).toString() || "{}");
+        calls.push({ path: p, action: "activate", code: body.token });
+        if (body.token !== LINK_CODE || (station.strictLinks && usedLinks.has(body.token))) return send(res, 403, { error: "invite_invalid", message: "invite_invalid" });
+        usedLinks.add(body.token);
+        return send(res, 200, { token: DEVICE_TOKEN });
+      }
+      if (req.headers.authorization !== `Bearer ${DEVICE_TOKEN}` || station.revoked) return send(res, 401, { error: "unknown", message: "unknown" });
+      if (rest === "me") return send(res, 200, { name: "iPhone Marius", permission: station.perm, cars: station.noCars ? [] : [{ config_entry_id: "car1", title: "Kodiaq iV" }] });
+      p = rest.startsWith("service/") ? `/api/services/car_costs/${rest.slice(8)}` : `/api/car_costs/${rest}`;
+      phone = true;
+    }
     if (p.startsWith("/api/")) {
-      if (req.headers.authorization !== "Bearer tok") return send(res, 401, { message: "Unauthorized" });
+      if (!phone && req.headers.authorization !== "Bearer tok") return send(res, 401, { message: "Unauthorized" });
       if (p === "/api/car_costs/cars") return send(res, 200, station.noCars ? [] : [{ config_entry_id: "car1", title: "Kodiaq iV" }]);
       if (p === "/api/car_costs/overview") return send(res, 200, overview());
       if (p === "/api/car_costs/history") return send(res, 200, history());
@@ -148,7 +191,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     send(res, 404, "not found", "text/plain");
   });
   return new Promise((resolve) => server.listen(port, "127.0.0.1", () => {
-    resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, station, reset: () => { db = seed(); calls.length = 0; station.ai = true; station.aiResult = null; station.noCars = false; }, close: () => new Promise((r) => server.close(r)) });
+    resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, station, reset: () => { db = seed(); phones = newPhones(); station.app = { url: "https://demo.ui.nabu.casa/car-costs", external: true }; usedLinks.clear(); calls.length = 0; station.perm = "edit"; station.revoked = false; station.strictLinks = false; station.ai = true; station.aiResult = null; station.noCars = false; }, close: () => new Promise((r) => server.close(r)) });
   }));
 }
 

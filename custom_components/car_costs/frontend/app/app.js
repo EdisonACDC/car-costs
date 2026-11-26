@@ -7,7 +7,8 @@ import {
   lang, LANGS, setLanguage, languagePreference,
 } from "./i18n.js";
 import { barsChart, lineChart, donut } from "./charts.js";
-import { $, $$, esc, buzz, toast, loadThumbs, openSheet } from "./ui.js";
+import { $, $$, esc, buzz, toast, loadThumbs } from "./ui.js";
+import { phoneBox, mountPhones, maybeWelcome } from "./phones.js";
 import { initForms, openAdd, openDetail } from "./forms.js";
 
 { const th = new URLSearchParams(location.search).get("theme"); if (th) document.documentElement.dataset.theme = th; }
@@ -19,7 +20,7 @@ const state = {
   entry: new URLSearchParams(location.search).get("entry") || localStorage.getItem(ENTRY_KEY) || "",
   cars: [], ov: null, hist: null,
   tab: "overview", filter: "all", q: "", range: 12,
-  offline: false,
+  offline: false, perm: "edit",
 };
 const root = $("#app");
 let loading = false;
@@ -27,20 +28,67 @@ let loading = false;
 // ---------------------------------------------------------------- screens
 function setScreen(html) { root.innerHTML = html; $("#tabs").hidden = true; }
 
-function showLogin() {
-  setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("login_title"))}</h1><p>${esc(t("login_text"))}</p>
-    <button class="btn" id="go">${esc(t("login_btn"))}</button></div>`);
-  $("#go").onclick = auth.login;
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const standalone = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
+let installPrompt = null;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; $("#install-btn")?.removeAttribute("hidden"); });
+
+/** No link yet (or it stopped working): scan the QR from the panel, or paste the link. */
+function showLink(reason = "") {
+  const msg = reason === "bad" ? t("link_bad") : reason === "off" ? t("link_off") : t("link_text");
+  setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("link_title"))}</h1><p>${esc(msg)}</p>
+    <form class="paste" id="paste"><input id="pasted" type="text" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${esc(t("link_paste"))}" aria-label="${esc(t("link_paste"))}">
+    <button class="btn" type="submit">${esc(t("link_go"))}</button></form></div>`);
+  $("#paste").onsubmit = (e) => {
+    e.preventDefault();
+    const code = auth.linkFrom($("#pasted").value);
+    if (code) openLink(code); else showLink("bad");
+  };
   hideSplash();
 }
+/** How to put the app on the Home Screen. On iPhone this is where the link waits (it is in the address). */
+function showInstall(onContinue) {
+  setScreen(`<div class="center"><div class="logo">📲</div><h1>${esc(t("install_title"))}</h1>
+    <p>${esc(isIOS() ? t("install_ios") : t("install_android"))}</p>
+    ${!isIOS() ? `<button class="btn" id="install-btn" ${installPrompt ? "" : "hidden"}>${esc(t("install_btn"))}</button>` : ""}
+    ${onContinue ? `<button class="btn ghost" id="install-go">${esc(t("install_continue"))}</button>` : ""}</div>`);
+  const b = $("#install-btn");
+  if (b) b.onclick = () => installPrompt?.prompt();
+  const go = $("#install-go");
+  if (go) go.onclick = onContinue;
+  hideSplash();
+}
+/** The phone opened a link: trade it for this phone's own token (never a Home Assistant login). */
+async function openLink(code) {
+  if (isIOS() && !standalone()) {
+    // On iPhone the Home Screen app keeps its own storage: the link is not used here. It goes in the
+    // address, and the icon "Add to Home Screen" makes opens the app with it.
+    auth.keepLinkForHomeScreen(code);
+    return showInstall(null);
+  }
+  setScreen(`<div class="center"><div class="logo">🚙</div><p>${esc(t("link_wait"))}</p></div>`);
+  hideSplash();
+  try { await auth.activate(code); }
+  catch (e) {
+    if (e instanceof Unreachable) return showMessage(esc(t("unreachable")), () => openLink(code));
+    auth.forgetLinkInUrl();
+    return showLink("bad");
+  }
+  auth.forgetLinkInUrl();
+  state.cars = []; state.ov = null; state.hist = null;
+  localStorage.removeItem(CACHE_KEY);
+  if (!standalone() && !isIOS()) return showInstall(begin);
+  return begin();
+}
 function showWelcome() {
+  if (!auth.EMBEDDED) return showMessage(esc(t("no_cars")), true);   // a phone: nothing was shared with it
   setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("welcome_title"))}</h1><p>${esc(t("welcome_text"))}</p>
     <a class="btn" href="${auth.BASE}/config/integrations/dashboard/add?domain=car_costs" target="_top">${esc(t("welcome_btn"))}</a></div>`);
   hideSplash();
 }
 function showMessage(text, retry) {
   setScreen(`<div class="center"><div class="logo">🚙</div><p>${text}</p>${retry ? `<button class="btn" id="retry">${esc(t("retry"))}</button>` : ""}</div>`);
-  if (retry) $("#retry").onclick = start;
+  if (retry) $("#retry").onclick = typeof retry === "function" ? retry : start;
   hideSplash();
 }
 function skeleton() {
@@ -59,6 +107,7 @@ function hideSplash() {
 const q = () => new URLSearchParams({ config_entry_id: state.entry });
 
 async function fetchAll() {
+  state.perm = (await auth.me()).permission || "view";
   if (!state.cars.length) state.cars = await auth.apiJson("/api/car_costs/cars");
   if (!state.cars.length) throw new ApiError("none", 404, {});
   if (!state.cars.some((c) => c.config_entry_id === state.entry)) state.entry = state.cars[0].config_entry_id;
@@ -68,14 +117,14 @@ async function fetchAll() {
   ]);
   state.ov = ov; state.hist = hist; state.offline = false;
   localStorage.setItem(ENTRY_KEY, state.entry);
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cars: state.cars, entry: state.entry, ov, hist, at: Date.now() })); } catch { /* quota */ }
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ cars: state.cars, entry: state.entry, ov, hist, perm: state.perm, at: Date.now() })); } catch { /* quota */ }
 }
 
 function loadCache() {
   try {
     const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
     if (!c || (state.entry && c.entry !== state.entry && state.cars.length)) return false;
-    Object.assign(state, { cars: c.cars, entry: c.entry, ov: c.ov, hist: c.hist, offline: true });
+    Object.assign(state, { cars: c.cars, entry: c.entry, ov: c.ov, hist: c.hist, perm: c.perm || "view", offline: true });
     return true;
   } catch { return false; }
 }
@@ -90,7 +139,7 @@ async function refresh({ quiet = false } = {}) {
     maybeWelcome();
     return true;
   } catch (e) {
-    if (e instanceof LoginRequired) { showLogin(); return false; }
+    if (e instanceof LoginRequired) { localStorage.removeItem(CACHE_KEY); state.ov = null; showLink("off"); return false; }
     if (e instanceof ApiError && e.status === 404) { showWelcome(); return false; }
     if (e instanceof Unreachable || e instanceof TypeError) {
       if (state.ov || loadCache()) { state.offline = true; render(); }
@@ -101,7 +150,7 @@ async function refresh({ quiet = false } = {}) {
     return false;
   } finally { loading = false; }
 }
-const relogin = () => { showLogin(); };
+const relogin = () => { showLink("off"); };
 initForms({ state, refresh, relogin });
 
 // ------------------------------------------------------------------ model
@@ -246,52 +295,6 @@ function chartsHtml() {
       <div>${split.map((p) => `<div class="legend" style="margin:6px 0"><span>${dot(p.color)}${esc(p.label)} · <b>${eur(p.value)}</b></span></div>`).join("")}</div></div>` : none)}`;
 }
 
-// ------------------------------------------------------- phone app (link + QR)
-/** Link, QR code and the two install steps. */
-function phoneBlock(app) {
-  if (!app?.url) return `<div class="warn">${esc(t("phone_none"))}</div>`;
-  return `<div class="phone-body">${app.external ? "" : `<div class="warn">${esc(t("phone_local"))}</div>`}
-    <div class="qr" data-qr="${esc(app.url)}" role="img" aria-label="QR"></div>
-    <a class="link" href="${esc(app.url)}" target="_blank" rel="noopener">${esc(app.url)}</a>
-    <div class="btns two"><button class="btn ghost" data-copy="${esc(app.url)}">${esc(t("phone_copy"))}</button>
-      <a class="btn" href="${esc(app.url)}" target="_blank" rel="noopener">${esc(t("phone_open"))}</a></div>
-    <ul class="steps"><li>${t("phone_ios")}</li><li>${t("phone_android")}</li></ul></div>`;
-}
-/** Only inside Home Assistant: on the phone you already have the app. */
-function phoneSection(app) {
-  if (!auth.EMBEDDED) return "";
-  return `<section class="group glass phone"><h3 style="padding:0 0 6px">${esc(t("s_phone"))}</h3><div class="footnote" style="padding:0 0 10px">${esc(t("phone_hint"))}</div>${phoneBlock(app)}</section>`;
-}
-async function fillQr(scope = document) {
-  const boxes = $$("[data-qr]", scope);
-  if (!boxes.length) return;
-  const { default: qrcode } = await import("./vendor/qrcode.js");
-  for (const b of boxes) {
-    const qr = qrcode(0, "M");
-    qr.addData(b.dataset.qr); qr.make();
-    b.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
-  }
-}
-async function copyText(text) {
-  try { await navigator.clipboard.writeText(text); }
-  catch {
-    const ta = document.createElement("textarea");
-    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
-    document.body.append(ta); ta.select();
-    try { document.execCommand("copy"); } finally { ta.remove(); }
-  }
-  toast(t("phone_copied"));
-}
-/** After the first car: a short welcome with the phone app, once. */
-const WELCOME_KEY = "car_costs_welcome";
-function maybeWelcome() {
-  if (!auth.EMBEDDED || localStorage.getItem(WELCOME_KEY)) return;
-  localStorage.setItem(WELCOME_KEY, "1");
-  const sheet = openSheet(`<h2>🎉 ${esc(t("hello_title"))}</h2><p class="footnote" style="padding:0 0 10px">${esc(t("hello_text"))}</p>
-    <div class="phone">${phoneBlock(state.ov.app)}</div><button class="btn ghost" data-close style="margin-top:12px">${esc(t("hello_ok"))}</button>`);
-  fillQr(sheet.el);
-}
-
 // ------------------------------------------------------------- settings tab
 function settingsHtml() {
   const { ov, cars } = state;
@@ -303,9 +306,9 @@ function settingsHtml() {
     <section class="group glass"><h3>${esc(t("s_prices"))}</h3>
       <div class="row"><span class="k">${esc(t("s_power"))}</span><span class="vv">${num(ov.electricity_price, 3)}</span></div>
       <div class="row"><span class="k">${esc(t("s_ref_fuel", { fuel }))}</span><span class="vv">${num(ov.ref_fuel_price, 3)}</span></div>
-      <a class="row" href="${auth.BASE}/config/integrations/integration/car_costs" target="_blank" rel="noopener"><span>${esc(t("s_edit_ha"))}</span><span>↗</span></a>
+      ${auth.EMBEDDED ? `<a class="row" href="${auth.BASE}/config/integrations/integration/car_costs" target="_blank" rel="noopener"><span>${esc(t("s_edit_ha"))}</span><span>↗</span></a>` : ""}
       <div class="footnote">${esc(t("s_prices_note"))}</div></section>
-    ${phoneSection(ov.app)}
+    ${phoneBox()}
     <section class="group glass"><div class="row"><span class="k">${esc(t("s_language"))}</span>
       <select id="lang"><option value="auto" ${pref === "auto" ? "selected" : ""}>${esc(t("s_auto"))}</option>
       ${LANGS.map((l) => `<option value="${l}" ${pref === l ? "selected" : ""}>${{ it: "Italiano", de: "Deutsch", en: "English" }[l]}</option>`).join("")}</select></div></section>
@@ -333,7 +336,8 @@ function render() {
     $$(".bar i").forEach((i) => (i.style.width = `${i.dataset.w}%`));
   }));
   loadThumbs(root);
-  fillQr(root);
+  if (state.tab === "settings") mountPhones();
+  $("#fab").style.visibility = state.perm === "view" ? "hidden" : "";
   window.scrollTo(0, y);
   hideSplash();
 }
@@ -367,10 +371,8 @@ document.addEventListener("click", (e) => {
   if (range) { state.range = Number(range.dataset.range); buzz(4); return render(); }
   const tip = el.closest("[data-tip]");
   if (tip) { const r = tip.closest(".chart")?.querySelector("[data-readout]"); if (r) r.textContent = tip.dataset.tip; return; }
-  const copy = el.closest("[data-copy]");
-  if (copy) return void copyText(copy.dataset.copy);
   if (el.closest("#logout")) {
-    auth.logout().then(() => { state.ov = null; state.hist = null; localStorage.removeItem(CACHE_KEY); showLogin(); });
+    auth.forget(); state.ov = null; state.hist = null; localStorage.removeItem(CACHE_KEY); showLink();
   }
 });
 document.addEventListener("input", (e) => {
@@ -414,15 +416,23 @@ addEventListener("online", () => state.ov && refresh({ quiet: true }));
 }
 
 // ------------------------------------------------------------------- start
-async function start() {
+async function begin() {
   $("#tabs").hidden = true;
-  labelTabs();
-  try { await auth.finishLogin(); } catch { /* shown below as unreachable */ }
-  if (!auth.hasTokens()) return showLogin();
   if (loadCache()) { render(); state.offline = false; }   // instant first paint, then refresh
   else skeleton();
   const ok = await refresh();
   if (!ok && state.ov && !state.offline) { state.offline = true; render(); }
+}
+
+async function start() {
+  $("#tabs").hidden = true;
+  labelTabs();
+  if (!auth.EMBEDDED) {
+    const code = auth.readLink();
+    if (code) return openLink(code);
+  }
+  if (!auth.hasTokens()) return showLink();
+  return begin();
 }
 
 if (auth.EMBEDDED) document.documentElement.classList.add("embed");

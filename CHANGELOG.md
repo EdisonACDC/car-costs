@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.0b4 (pre-release)
+
+- **The phone no longer needs a Home Assistant account.** In the panel, **Settings → Phone app → Link a
+  phone**: a name, the cars it can see and what it may do (*View only*, *View and add*, *View, add and
+  change*). The result is a link with a one-time token after the `#` (24 hours, never in a log), shown as
+  a QR code with Copy and Share. The phone trades it for a device token (256 bits, stored in Home
+  Assistant only as a SHA-256 hash, renewed every 30 days) and keeps it in `localStorage`. The model is
+  Family Hub's guest invites.
+- New API for phones under `/api/car_costs/app/` (`requires_auth=False`, device token only): `activate`,
+  `me`, `cars`, `overview`, `history`, `image`, `receipt`, `service/{add_refuel,add_charge,update_entry,
+  delete_entry}`. A phone only gets its own cars, and only what its permission allows; never entities or
+  configuration. Rate limits per device and per address; an address is blocked after 10 wrong activations.
+- The panel lists the linked phones (name, last access, permissions) with rename, change of permissions and
+  cars, unlink (it stops at once) and *new phone* (the new link replaces the old device). Websocket
+  commands `car_costs/phones`, `phone_link`, `phone_update`, `phone_remove` (administrators only).
+- The web app has **no Home Assistant login** any more (OAuth removed). Without a link it shows "A link is
+  needed" with *Paste the link*. A phone that was unlinked is told so.
+- iPhone: a link opened in Safari is kept in the address (`?c=`) and the app explains *Share → Add to Home
+  Screen*; the Home Screen icon then opens the app with the link. Other phones are offered to install the
+  app.
+- "View only" phones have no **＋** and no edit/delete; "View and add" cannot edit or delete.
+- The welcome sheet after the first car now offers to link a phone.
+- Without an external address the panel warns that the link works at home only.
+- `/car-costs` keeps the query string when it redirects.
+
 ## 0.3.0b3 (pre-release)
 
 - **Fix:** the panel was only about 150 px tall inside Home Assistant; it now fills the screen

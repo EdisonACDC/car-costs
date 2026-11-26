@@ -90,18 +90,19 @@ mancanti in rosso, e premi **Salva**.
   voce si cancellano dopo 24 ore.
 - Senza AI l'app ti chiede di compilare il modulo a mano.
 
-## Web app sul telefono
+## App sul telefono
 
-In **Impostazioni → App sul telefono** il pannello mostra il link della web app, un **QR code** (inquadralo col telefono) e i pulsanti **Copia** e **Apri**. Il link usa il tuo indirizzo esterno (Nabu Casa o URL esterno di Home Assistant); con il solo indirizzo locale avvisa che funziona solo in casa. Lo stesso riquadro compare una volta dopo aver aggiunto la prima auto.
+Il telefono **non** ha bisogno di un account di Home Assistant e non vede mai il login di Home Assistant. Lo si collega dal pannello, come Family Hub fa con gli invitati:
 
-La stessa app, per il telefono, fuori dall'app di Home Assistant: apri `https://<tuo-home-assistant>/car-costs`
-(va bene anche l'indirizzo Nabu Casa), accedi con il tuo utente di Home Assistant e aggiungila alla schermata Home:
+1. In **Costi Auto → Impostazioni → App sul telefono** premi **Collega un telefono**. Dagli un nome (per esempio "iPhone Marius"), scegli le auto visibili e i permessi: *Solo vedere*, *Vedere e aggiungere*, oppure *Vedere, aggiungere e modificare*.
+2. Compare un **QR code** (con **Copia** e **Condividi**). Inquadralo col telefono. Il link vale una volta sola e per 24 ore; il codice sta dopo il `#` dell'indirizzo, quindi non finisce in nessun log.
+3. Il telefono lo scambia con un token suo (256 bit, in Home Assistant solo come hash SHA-256, rinnovato ogni 30 giorni) e apre l'app. Basta.
 
-- **iPhone**: Safari → Condividi → *Aggiungi alla schermata Home*
-- **Android**: Chrome → ⋮ → *Installa app*
-
-Funziona anche solo in LAN, e l'ultimo riepilogo resta disponibile offline. Con più auto:
-`/car-costs?entry=<config_entry_id>`.
+- **iPhone:** se il link si apre in Safari, l'app spiega: Condividi → *Aggiungi alla schermata Home*, poi apri l'icona. Il collegamento è già dentro.
+- **Android:** Chrome → ⋮ → *Installa app*.
+- I **telefoni collegati** sono nell'elenco del pannello (nome, ultimo accesso, permessi). Puoi rinominarne uno, cambiare permessi e auto, scollegarlo (smette subito) o collegare un *nuovo telefono* al suo posto.
+- Il telefono riceve solo le auto e le azioni che gli hai dato, da `/api/car_costs/app/…`. Non riceve mai entità, configurazione o altro di Home Assistant. Le richieste sono limitate per telefono e per indirizzo, e un indirizzo si blocca dopo 10 attivazioni sbagliate.
+- Senza un indirizzo esterno (Nabu Casa o URL esterno di Home Assistant) il pannello avvisa che il link funziona solo in casa. L'ultimo riepilogo resta disponibile offline.
 
 ## Servizi
 
