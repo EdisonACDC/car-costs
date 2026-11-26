@@ -2,7 +2,7 @@
 
 import { api, apiJson, ApiError, LoginRequired } from "./auth.js";
 import { t, num, eur, dateLabel, todayIso } from "./i18n.js";
-import { $, $$, esc, buzz, toast, openSheet, closeAllSheets, confirmDialog, receiptUrl, forgetReceipt, viewImage, shrinkImage } from "./ui.js";
+import { $, $$, esc, buzz, toast, openSheet, sheetHead, closeAllSheets, confirmDialog, receiptUrl, forgetReceipt, viewImage, shrinkImage } from "./ui.js";
 
 let ctx; // { state, refresh }
 export function initForms(c) { ctx = c; }
@@ -21,7 +21,7 @@ const service = (name, data) => apiJson(`/api/services/car_costs/${name}`, {
   body: JSON.stringify({ config_entry_id: ctx.state.entry, ...data }),
 });
 
-function setSheet(sheet, html) { sheet.el.innerHTML = `<div class="grab"></div>${html}`; sheet.el.scrollTop = 0; }
+function setSheet(sheet, html) { sheet.el.innerHTML = `${sheetHead()}${html}`; sheet.el.scrollTop = 0; }
 
 // ------------------------------------------------------------------- ＋ sheet
 export function openAdd() {

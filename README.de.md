@@ -92,6 +92,8 @@ Felder sind rot, und drückst **Speichern**.
 
 ## Web-App auf dem Handy
 
+Unter **Einstellungen → App auf dem Handy** zeigt das Panel den Link der Web-App, einen **QR-Code** (mit dem Handy scannen) sowie die Knöpfe **Kopieren** und **Öffnen**. Der Link nutzt deine externe Adresse (Nabu Casa oder externe URL von Home Assistant); mit nur einer lokalen Adresse warnt er, dass es nur zu Hause funktioniert. Dasselbe Feld erscheint einmal nach dem Hinzufügen des ersten Autos.
+
 Dieselbe App fürs Handy, außerhalb der Home-Assistant-App: Öffne `https://<dein-home-assistant>/car-costs`
 (auch eine Nabu-Casa-Adresse funktioniert), melde dich mit deinem Home-Assistant-Benutzer an und füge sie dem Home-Bildschirm hinzu:
 

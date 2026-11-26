@@ -11,6 +11,8 @@ const DICT = {
     login_title: "Costi Auto", login_text: "Accedi con il tuo utente di Home Assistant per vedere i costi della tua auto.",
     login_btn: "Accedi a Home Assistant", retry: "Riprova",
     unreachable: "Home Assistant non raggiungibile", no_integration: "Car Costs non è configurato in Home Assistant",
+    s_phone: "App sul telefono", phone_hint: "Apri questo indirizzo sul telefono e aggiungilo alla schermata Home.", phone_local: "Funziona solo in casa: manca un indirizzo esterno (Nabu Casa o URL esterno di Home Assistant).", phone_none: "Home Assistant non ha un indirizzo da condividere.",
+    phone_copy: "Copia", phone_copied: "Link copiato", phone_open: "Apri", phone_ios: "<b>iPhone</b>: Safari → Condividi → Aggiungi alla schermata Home", phone_android: "<b>Android</b>: Chrome → ⋮ → Installa app", close: "Chiudi", hello_title: "Prima auto aggiunta", hello_text: "Ecco la tua panoramica. Vuoi la stessa app anche sul telefono?", hello_ok: "Ho capito",
     welcome_title: "Benvenuto in Costi Auto", welcome_text: "Aggiungi la tua auto: in quattro passi scopri quanto costa davvero e quando si ripaga.", welcome_btn: "Aggiungi la prima auto",
     offline: "offline", loading: "Caricamento…",
     since: "dal {date}", days_one: "{n} giorno", days_other: "{n} giorni",
@@ -56,6 +58,8 @@ const DICT = {
     login_title: "Autokosten", login_text: "Melde dich mit deinem Home-Assistant-Benutzer an, um die Kosten deines Autos zu sehen.",
     login_btn: "Bei Home Assistant anmelden", retry: "Erneut versuchen",
     unreachable: "Home Assistant nicht erreichbar", no_integration: "Car Costs ist in Home Assistant nicht eingerichtet",
+    s_phone: "App auf dem Handy", phone_hint: "Öffne diese Adresse auf dem Handy und füge sie dem Home-Bildschirm hinzu.", phone_local: "Funktioniert nur zu Hause: Es gibt keine externe Adresse (Nabu Casa oder externe URL von Home Assistant).", phone_none: "Home Assistant hat keine Adresse zum Teilen.",
+    phone_copy: "Kopieren", phone_copied: "Link kopiert", phone_open: "Öffnen", phone_ios: "<b>iPhone</b>: Safari → Teilen → Zum Home-Bildschirm", phone_android: "<b>Android</b>: Chrome → ⋮ → App installieren", close: "Schließen", hello_title: "Erstes Auto hinzugefügt", hello_text: "Das ist deine Übersicht. Willst du dieselbe App auch auf dem Handy?", hello_ok: "Verstanden",
     welcome_title: "Willkommen bei Costi Auto", welcome_text: "Füge dein Auto hinzu: in vier Schritten siehst du, was es wirklich kostet und wann es sich bezahlt macht.", welcome_btn: "Erstes Auto hinzufügen",
     offline: "offline", loading: "Laden…",
     since: "seit {date}", days_one: "{n} Tag", days_other: "{n} Tage",
@@ -101,6 +105,8 @@ const DICT = {
     login_title: "Car Costs", login_text: "Log in with your Home Assistant user to see what your car costs.",
     login_btn: "Log in to Home Assistant", retry: "Retry",
     unreachable: "Home Assistant not reachable", no_integration: "Car Costs is not set up in Home Assistant",
+    s_phone: "Phone app", phone_hint: "Open this address on your phone and add it to the Home screen.", phone_local: "Works at home only: there is no external address (Nabu Casa or Home Assistant's external URL).", phone_none: "Home Assistant has no address to share.",
+    phone_copy: "Copy", phone_copied: "Link copied", phone_open: "Open", phone_ios: "<b>iPhone</b>: Safari → Share → Add to Home Screen", phone_android: "<b>Android</b>: Chrome → ⋮ → Install app", close: "Close", hello_title: "First car added", hello_text: "This is your overview. Want the same app on your phone too?", hello_ok: "Got it",
     welcome_title: "Welcome to Costi Auto", welcome_text: "Add your car: in four steps you see what it really costs and when it pays off.", welcome_btn: "Add your first car",
     offline: "offline", loading: "Loading…",
     since: "since {date}", days_one: "{n} day", days_other: "{n} days",
@@ -175,15 +181,17 @@ function fmtr(name, opts) {
   return (nf[k] ||= new Intl.NumberFormat(locale(), opts));
 }
 
-export const num = (n, d = 0) => (n == null || Number.isNaN(n) ? "–" : fmtr("n", { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: "always" }).format(n));
+/** Round first: a tiny negative number must show as 0, never as "-0". */
+const clean = (n, d) => { const r = Math.round(n * 10 ** d) / 10 ** d; return r === 0 ? 0 : r; };
+export const num = (n, d = 0) => (n == null || Number.isNaN(n) ? "–" : fmtr("n", { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: "always" }).format(clean(n, d)));
 export function eur(n, d = 0) {
   if (n == null || Number.isNaN(n)) return "–";
-  return fmtr("c", { style: "currency", currency: "EUR", minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: "always" }).format(n);
+  return fmtr("c", { style: "currency", currency: "EUR", minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: "always" }).format(clean(n, d));
 }
 export function signedEur(n, d = 0) {
   if (n == null || Number.isNaN(n)) return "–";
-  const s = eur(Math.abs(n), d);
-  return n < 0 ? `−${s}` : `+${s}`;
+  const r = clean(n, d), s = eur(Math.abs(r), d);
+  return r < 0 ? `−${s}` : `+${s}`;
 }
 export const pct = (n, d = 1) => (n == null ? "–" : `${num(n, d)}%`);
 

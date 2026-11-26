@@ -37,7 +37,7 @@ function seed() {
 export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
   let db = seed();
   const calls = [];
-  const station = { ai, aiResult };
+  const station = { ai, aiResult, app: { url: "https://demo.ui.nabu.casa/car-costs", external: true } };
 
   const summary = () => {
     const refuels = db.log.filter((e) => e.kind === "refuel"), charges = db.log.filter((e) => e.kind === "charge");
@@ -52,7 +52,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     };
   };
   const overview = () => ({
-    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b1", start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
+    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b3", app: station.app, start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
     electricity_price: 0.32, ref_fuel_price: 1.65, ev_consumption: 22, has_home_meter: true, ai_task_available: station.ai,
     last_station: db.log.filter((e) => e.kind === "refuel" && e.station).sort((a, b) => b.date.localeCompare(a.date))[0]?.station || null,
     summary: summary(), entries: [...db.log].sort((a, b) => (b.date + b.created).localeCompare(a.date + a.created)),
@@ -83,7 +83,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     if (p === "/car-costs") { res.writeHead(302, { Location: "/car_costs_static/app/index.html" }); return res.end(); }
     if (p === "/host") {   // stands in for Home Assistant's frontend: it mounts the panel and gives it `hass`
       const dark = url.searchParams.get("dark") === "1", narrow = url.searchParams.get("narrow") === "1", lang = url.searchParams.get("lang") || "it";
-      return send(res, 200, `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;height:100%;background:${dark ? "#111" : "#fafafa"}}car-costs-panel{display:block;height:100%}</style>
+      return send(res, 200, `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:${dark ? "#111" : "#fafafa"}}car-costs-panel{display:block}</style>
         <body><script type="module" src="/car_costs_static/panel.js"></script><script type="module">
         window.__menu = 0; document.addEventListener("hass-toggle-menu", () => window.__menu++);
         await customElements.whenDefined("car-costs-panel");

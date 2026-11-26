@@ -92,6 +92,8 @@ mancanti in rosso, e premi **Salva**.
 
 ## Web app sul telefono
 
+In **Impostazioni → App sul telefono** il pannello mostra il link della web app, un **QR code** (inquadralo col telefono) e i pulsanti **Copia** e **Apri**. Il link usa il tuo indirizzo esterno (Nabu Casa o URL esterno di Home Assistant); con il solo indirizzo locale avvisa che funziona solo in casa. Lo stesso riquadro compare una volta dopo aver aggiunto la prima auto.
+
 La stessa app, per il telefono, fuori dall'app di Home Assistant: apri `https://<tuo-home-assistant>/car-costs`
 (va bene anche l'indirizzo Nabu Casa), accedi con il tuo utente di Home Assistant e aggiungila alla schermata Home:
 

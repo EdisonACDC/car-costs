@@ -21,6 +21,9 @@ export function toast(msg) {
 // ------------------------------------------------------------------ sheets
 const stack = [];
 
+/** Handle + close button at the top of every sheet (the button is for mouse users: PC and tablet). */
+export const sheetHead = () => `<div class="grab"></div><button class="x" type="button" data-close aria-label="${esc(t("close"))}">✕</button>`;
+
 /** Open a bottom sheet. Returns {el, close}. Sheets can be stacked. */
 export function openSheet(html, { onClose } = {}) {
   const backdrop = document.createElement("div");
@@ -29,7 +32,8 @@ export function openSheet(html, { onClose } = {}) {
   el.className = "sheet";
   el.setAttribute("role", "dialog");
   el.setAttribute("aria-modal", "true");
-  el.innerHTML = `<div class="grab"></div>${html}`;
+  el.innerHTML = `${sheetHead()}${html}`;
+  el.addEventListener("click", (e) => { if (e.target.closest("[data-close]")) sheet.close(); });
   const layer = $("#layer");
   layer.append(backdrop, el);
   document.body.classList.add("lock");

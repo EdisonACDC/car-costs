@@ -365,12 +365,14 @@ async def test_overview_has_new_fields(hass: HomeAssistant, hass_client) -> None
     await hass.services.async_call(
         DOMAIN, "add_refuel", {"liters": 10, "total_cost": 18, "station": "Aral"}, blocking=True
     )
+    hass.config.external_url = "https://ha.example.com"
     client = await hass_client()
     body = await (
         await client.get(f"/api/car_costs/overview?config_entry_id={entry.entry_id}")
     ).json()
+    assert body["app"] == {"url": "https://ha.example.com/car-costs", "external": True}
     assert body["ev_consumption"] == 22 and body["last_station"] == "Aral"
-    assert body["ref_fuel"] == "diesel" and body["version"] == "0.3.0b2"
+    assert body["ref_fuel"] == "diesel" and body["version"] == "0.3.0b3"
     assert body["ai_task_available"] is False
     assert "ev_share_pct" in body["summary"]
 

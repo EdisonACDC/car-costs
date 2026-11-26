@@ -7,7 +7,7 @@ import {
   lang, LANGS, setLanguage, languagePreference,
 } from "./i18n.js";
 import { barsChart, lineChart, donut } from "./charts.js";
-import { $, $$, esc, buzz, toast, loadThumbs } from "./ui.js";
+import { $, $$, esc, buzz, toast, loadThumbs, openSheet } from "./ui.js";
 import { initForms, openAdd, openDetail } from "./forms.js";
 
 { const th = new URLSearchParams(location.search).get("theme"); if (th) document.documentElement.dataset.theme = th; }
@@ -87,6 +87,7 @@ async function refresh({ quiet = false } = {}) {
   try {
     await fetchAll();
     render();
+    maybeWelcome();
     return true;
   } catch (e) {
     if (e instanceof LoginRequired) { showLogin(); return false; }
@@ -245,6 +246,52 @@ function chartsHtml() {
       <div>${split.map((p) => `<div class="legend" style="margin:6px 0"><span>${dot(p.color)}${esc(p.label)} · <b>${eur(p.value)}</b></span></div>`).join("")}</div></div>` : none)}`;
 }
 
+// ------------------------------------------------------- phone app (link + QR)
+/** Link, QR code and the two install steps. */
+function phoneBlock(app) {
+  if (!app?.url) return `<div class="warn">${esc(t("phone_none"))}</div>`;
+  return `<div class="phone-body">${app.external ? "" : `<div class="warn">${esc(t("phone_local"))}</div>`}
+    <div class="qr" data-qr="${esc(app.url)}" role="img" aria-label="QR"></div>
+    <a class="link" href="${esc(app.url)}" target="_blank" rel="noopener">${esc(app.url)}</a>
+    <div class="btns two"><button class="btn ghost" data-copy="${esc(app.url)}">${esc(t("phone_copy"))}</button>
+      <a class="btn" href="${esc(app.url)}" target="_blank" rel="noopener">${esc(t("phone_open"))}</a></div>
+    <ul class="steps"><li>${t("phone_ios")}</li><li>${t("phone_android")}</li></ul></div>`;
+}
+/** Only inside Home Assistant: on the phone you already have the app. */
+function phoneSection(app) {
+  if (!auth.EMBEDDED) return "";
+  return `<section class="group glass phone"><h3 style="padding:0 0 6px">${esc(t("s_phone"))}</h3><div class="footnote" style="padding:0 0 10px">${esc(t("phone_hint"))}</div>${phoneBlock(app)}</section>`;
+}
+async function fillQr(scope = document) {
+  const boxes = $$("[data-qr]", scope);
+  if (!boxes.length) return;
+  const { default: qrcode } = await import("./vendor/qrcode.js");
+  for (const b of boxes) {
+    const qr = qrcode(0, "M");
+    qr.addData(b.dataset.qr); qr.make();
+    b.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 0, scalable: true });
+  }
+}
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.append(ta); ta.select();
+    try { document.execCommand("copy"); } finally { ta.remove(); }
+  }
+  toast(t("phone_copied"));
+}
+/** After the first car: a short welcome with the phone app, once. */
+const WELCOME_KEY = "car_costs_welcome";
+function maybeWelcome() {
+  if (!auth.EMBEDDED || localStorage.getItem(WELCOME_KEY)) return;
+  localStorage.setItem(WELCOME_KEY, "1");
+  const sheet = openSheet(`<h2>🎉 ${esc(t("hello_title"))}</h2><p class="footnote" style="padding:0 0 10px">${esc(t("hello_text"))}</p>
+    <div class="phone">${phoneBlock(state.ov.app)}</div><button class="btn ghost" data-close style="margin-top:12px">${esc(t("hello_ok"))}</button>`);
+  fillQr(sheet.el);
+}
+
 // ------------------------------------------------------------- settings tab
 function settingsHtml() {
   const { ov, cars } = state;
@@ -258,6 +305,7 @@ function settingsHtml() {
       <div class="row"><span class="k">${esc(t("s_ref_fuel", { fuel }))}</span><span class="vv">${num(ov.ref_fuel_price, 3)}</span></div>
       <a class="row" href="${auth.BASE}/config/integrations/integration/car_costs" target="_blank" rel="noopener"><span>${esc(t("s_edit_ha"))}</span><span>↗</span></a>
       <div class="footnote">${esc(t("s_prices_note"))}</div></section>
+    ${phoneSection(ov.app)}
     <section class="group glass"><div class="row"><span class="k">${esc(t("s_language"))}</span>
       <select id="lang"><option value="auto" ${pref === "auto" ? "selected" : ""}>${esc(t("s_auto"))}</option>
       ${LANGS.map((l) => `<option value="${l}" ${pref === l ? "selected" : ""}>${{ it: "Italiano", de: "Deutsch", en: "English" }[l]}</option>`).join("")}</select></div></section>
@@ -285,6 +333,7 @@ function render() {
     $$(".bar i").forEach((i) => (i.style.width = `${i.dataset.w}%`));
   }));
   loadThumbs(root);
+  fillQr(root);
   window.scrollTo(0, y);
   hideSplash();
 }
@@ -292,6 +341,7 @@ function render() {
 function go(tab) {
   if (tab === state.tab) { window.scrollTo({ top: 0, behavior: "smooth" }); return; }
   buzz(5);
+  if (tab === "log") { state.filter = "all"; state.q = ""; }   // the log always opens on "All"
   state.tab = tab;
   render();
   window.scrollTo(0, 0);
@@ -317,6 +367,8 @@ document.addEventListener("click", (e) => {
   if (range) { state.range = Number(range.dataset.range); buzz(4); return render(); }
   const tip = el.closest("[data-tip]");
   if (tip) { const r = tip.closest(".chart")?.querySelector("[data-readout]"); if (r) r.textContent = tip.dataset.tip; return; }
+  const copy = el.closest("[data-copy]");
+  if (copy) return void copyText(copy.dataset.copy);
   if (el.closest("#logout")) {
     auth.logout().then(() => { state.ov = null; state.hist = null; localStorage.removeItem(CACHE_KEY); showLogin(); });
   }

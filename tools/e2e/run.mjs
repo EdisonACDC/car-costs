@@ -308,6 +308,7 @@ for (const scheme of ["light", "dark"]) {
     for (const scheme of ["light", "dark"]) {
       fake.reset();
       const context = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 2, isMobile: narrow, hasTouch: narrow, colorScheme: scheme === "dark" ? "light" : "dark", locale: "it-IT" });
+      await context.addInitScript(() => localStorage.setItem("car_costs_welcome", "1"));
       const page = await context.newPage();
       const errors = [];
       page.on("console", (m) => { if (["error", "warning"].includes(m.type())) errors.push(m.text()); });
@@ -317,6 +318,8 @@ for (const scheme of ["light", "dark"]) {
       await frame.locator(".hero").waitFor({ timeout: 10000 });
       await wait(1500);
       const tag = `panel-${name}-${scheme}`;
+      const ph = await page.locator("car-costs-panel").evaluate((e) => e.getBoundingClientRect().height);
+      ok(Math.abs(ph - h) < 2, `${tag}: panel fills the screen height (${Math.round(ph)} of ${h})`);
       await shot(page, tag);
       ok(!fake.calls.some((c) => c.path === "/auth/token"), `${tag}: no login, no token request`);
       ok(await page.evaluate(() => window.__fetches > 0), `${tag}: calls go through hass.fetchWithAuth`);
@@ -337,10 +340,48 @@ for (const scheme of ["light", "dark"]) {
       await frame.locator('[data-tab="settings"]').click();
       await wait(400);
       ok(await frame.locator("#logout").count() === 0, `${tag}: no log-out button inside Home Assistant`);
+      // phone app section: link, QR drawn from the bundled library, copy and open buttons
+      await frame.locator(".phone .qr svg").waitFor({ timeout: 5000 });
+      ok(await frame.locator(".phone .link").innerText() === "https://demo.ui.nabu.casa/car-costs", `${tag}: phone section shows the external link`);
+      ok(await frame.locator(".phone .btn", { hasText: /Apri/ }).getAttribute("href") === "https://demo.ui.nabu.casa/car-costs", `${tag}: "Apri" opens the link`);
+      if (name === "phone" && scheme === "light") { await frame.locator(".phone .qr").scrollIntoViewIfNeeded(); await wait(300); await shot(page, "panel-phone-light-settings-phone"); }
+      await frame.locator("[data-copy]").click(); await wait(200);
+      ok(await frame.locator("#toast.in").count() === 1, `${tag}: "Copia" confirms with a toast`);
+      ok(await frame.locator(".phone .steps li").count() === 2, `${tag}: iPhone and Android steps`);
+      // the log always opens on "All", even after another filter was used
+      await frame.locator('[data-tab="log"]').click(); await wait(200);
+      ok(await frame.locator(".chip.on").getAttribute("data-filter") === "all", `${tag}: log opens on "All"`);
+      await frame.locator('[data-filter="home"]').click(); await wait(100);
+      await frame.locator('[data-tab="settings"]').click(); await frame.locator('[data-tab="log"]').click(); await wait(200);
+      ok(await frame.locator(".chip.on").getAttribute("data-filter") === "all", `${tag}: log back on "All" after leaving`);
+      // sheets have a close button (PC / tablet)
+      await frame.locator("#fab").click(); await wait(500);
+      await frame.locator(".sheet .x").click(); await wait(600);
+      ok(await frame.locator(".sheet").count() === 0, `${tag}: the ✕ closes the sheet`);
+      if (name === "phone" && scheme === "light") {
+        const fmt = await frame.locator("html").evaluate(async () => { const m = await import("/car_costs_static/app/i18n.js"); return [m.num(-0.04, 1), m.eur(-0.3), m.pct(-0.01), m.signedEur(-0.2), m.num(-1.26, 1)]; });
+        ok(!fmt.slice(0, 4).some((s) => /[-−]/.test(s)) && /1,3/.test(fmt[4]), `${tag}: no "-0" after rounding (${fmt.join(" | ")})`);
+      }
       if (name === "tablet") { await frame.locator('[data-tab="charts"]').click(); await wait(900); await shot(page, `${tag}-charts`); }
       ok(errors.filter((e) => !/Failed to load resource/.test(e)).length === 0, `${tag}: no console errors${errors.length ? " " + errors.join(" | ") : ""}`);
       await context.close();
     }
+  }
+  // first car: the welcome sheet with the phone app, once
+  {
+    fake.reset();
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "it-IT" });
+    const page = await context.newPage();
+    await page.goto(`${fake.url}/host?dark=0&narrow=0`);
+    const frame = page.frameLocator("iframe");
+    await frame.locator(".sheet .qr svg").waitFor({ timeout: 10000 });
+    ok(await frame.locator(".sheet .link").count() === 1, "welcome: sheet with the phone link after the first car");
+    await wait(600); await shot(page, "panel-welcome-phone");
+    await frame.locator(".sheet .x").click(); await wait(600);
+    ok(await frame.locator(".sheet").count() === 0, "welcome: ✕ closes it");
+    await page.reload(); await frame.locator(".hero").waitFor({ timeout: 10000 }); await wait(800);
+    ok(await frame.locator(".sheet").count() === 0, "welcome: shown only once");
+    await context.close();
   }
   // no car yet: welcome screen with the button that opens the setup
   fake.reset(); fake.station.noCars = true;

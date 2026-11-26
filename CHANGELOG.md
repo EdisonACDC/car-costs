@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0b3 (pre-release)
+
+- **Fix:** the panel was only about 150 px tall inside Home Assistant; it now fills the screen
+  (`100vh`/`100dvh`). The simulated Home Assistant used for the browser tests no longer gives the panel a
+  fixed height, so the test catches this.
+- **Settings → Phone app:** link of the web app (external address from Nabu Casa or Home Assistant's
+  external URL; with only a local address it warns that it works at home only), **QR code** (bundled
+  library, no CDN), **Copy** and **Open** buttons, and the iPhone/Android install steps. The same box
+  appears once after the first car is added. The overview now returns `app` (`url`, `external`).
+- No more "−0": numbers are rounded before they are formatted (ring, chart label, axis).
+- The log always opens on "All" (it could stay on "Home").
+- Sheets and forms have a **✕** button at the top right (for PC and tablet), besides Esc and a tap outside.
+
 ## 0.3.0b2 (pre-release)
 
 - **"Costi Auto" in Home Assistant's side menu** (icon `mdi:car-electric`, address `/costi-auto`): the same

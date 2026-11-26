@@ -24,6 +24,7 @@ from homeassistant.core import (
 )
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.http import HomeAssistantView
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -336,6 +337,23 @@ def ws_entries(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str,
     connection.send_result(msg["id"], overview(tracker, msg["limit"]))
 
 
+def app_link(hass: HomeAssistant) -> dict[str, Any]:
+    """Address of the phone web app: the external one (Nabu Casa / external_url) if there is one."""
+    for external in (True, False):
+        try:
+            base = get_url(
+                hass,
+                allow_internal=not external,
+                allow_external=external,
+                allow_cloud=external,
+                prefer_external=external,
+            )
+        except NoURLAvailableError:
+            continue
+        return {"url": f"{base.rstrip('/')}/car-costs", "external": external}
+    return {"url": None, "external": False}
+
+
 def overview(tracker: CarCostTracker, limit: int = 50) -> dict[str, Any]:
     """Everything the card and the web app show."""
     s = tracker.summary()
@@ -353,6 +371,7 @@ def overview(tracker: CarCostTracker, limit: int = 50) -> dict[str, Any]:
         "config_entry_id": tracker.entry.entry_id,
         "title": tracker.entry.title,
         "version": VERSION,
+        "app": app_link(tracker.hass),
         "start_date": tracker.start_date.isoformat(),
         "ref_name": tracker.opt("ref_name"),
         "ref_fuel": tracker.opt("ref_fuel"),

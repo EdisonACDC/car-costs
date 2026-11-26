@@ -1,7 +1,7 @@
 /* Car Costs web app service worker: the app shell works offline, data is always live. */
-const CACHE = "car-costs-0.3.0b1";
+const CACHE = "car-costs-0.3.0b3";
 const SHELL = [
-  "index.html", "app.css", "app.js", "auth.js", "i18n.js", "ui.js", "forms.js", "charts.js",
+  "index.html", "app.css", "app.js", "auth.js", "i18n.js", "ui.js", "forms.js", "charts.js", "vendor/qrcode.js",
   "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png",
 ];
 
