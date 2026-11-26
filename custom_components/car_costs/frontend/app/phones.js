@@ -62,6 +62,7 @@ export async function mountPhones(box = $("#phones")) {
         <span class="m"><b>${esc(d.name)}</b><small>${esc([d.label, t(`ph_${d.permission}`), `${t("ph_last")} ${when(d.last_seen)}`].join(" · "))}</small></span><span>›</span></button>`).join("")
       : `<div class="footnote" style="padding:6px 0">${esc(t("ph_none"))}</div>`}
     ${invites.map((i) => `<div class="row dev"><span class="m"><b>${esc(i.name)}</b><small>${esc(t("ph_pending"))}</small></span>
+        <button class="chip" data-ph="show" data-id="${esc(i.id)}">${esc(t("ph_show"))}</button>
         <button class="chip" data-ph="cancel" data-id="${esc(i.id)}">${esc(t("ph_cancel"))}</button></div>`).join("")}`;
   box.onclick = (e) => {
     const b = e.target.closest("[data-ph]");
@@ -69,6 +70,7 @@ export async function mountPhones(box = $("#phones")) {
     buzz(5);
     if (b.dataset.ph === "connect") connect(cars);
     else if (b.dataset.ph === "device") deviceSheet(devices.find((d) => d.id === b.dataset.id), cars);
+    else if (b.dataset.ph === "show") relink(invites.find((i) => i.id === b.dataset.id));
     else if (b.dataset.ph === "cancel") auth.callWS({ type: "car_costs/phone_remove", invite_id: b.dataset.id }).then(() => mountPhones(box), (err) => toast(wsError(err)));
   };
 }
@@ -122,6 +124,18 @@ function showLink(sheet, res) {
   const share = $("#ph-share", sheet.el);
   if (share) share.onclick = () => navigator.share({ title: "Costi Auto", url: res.link }).catch(() => {});
   fillQr(sheet.el);
+}
+
+/** Show a waiting link again. Only its hash is kept, so this makes an identical new link and cancels the old one. */
+async function relink(invite) {
+  if (!invite) return;
+  const sheet = openSheet(`<h2>${esc(t("ph_scan_title"))}</h2>`);
+  try {
+    const res = await auth.callWS({ type: "car_costs/phone_link", name: invite.name, entries: invite.entries, permission: invite.permission, ...(invite.replaces ? { replaces: invite.replaces } : {}) });
+    await auth.callWS({ type: "car_costs/phone_remove", invite_id: invite.id });
+    showLink(sheet, res);
+    refresh();
+  } catch (e) { sheet.close(); toast(wsError(e)); }
 }
 
 // -------------------------------------------------- a linked phone: manage it

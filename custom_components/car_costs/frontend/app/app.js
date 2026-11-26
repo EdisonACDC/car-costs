@@ -29,6 +29,10 @@ let loading = false;
 function setScreen(html) { root.innerHTML = html; $("#tabs").hidden = true; }
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+// iPhone takes the Home Screen icon's address from the manifest's start_url if there is one, and
+// that has no ?c=. Without a manifest it uses the address of the page, which keeps the link
+// (the way Family Hub does it).
+if (isIOS()) document.querySelector('link[rel="manifest"]')?.remove();
 const standalone = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
 let installPrompt = null;
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; $("#install-btn")?.removeAttribute("hidden"); });

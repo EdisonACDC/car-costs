@@ -86,7 +86,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     };
   };
   const overview = () => ({
-    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b4", app: station.app, start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
+    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b5", app: station.app, start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
     electricity_price: 0.32, ref_fuel_price: 1.65, ev_consumption: 22, has_home_meter: true, ai_task_available: station.ai,
     last_station: db.log.filter((e) => e.kind === "refuel" && e.station).sort((a, b) => b.date.localeCompare(a.date))[0]?.station || null,
     summary: summary(), entries: [...db.log].sort((a, b) => (b.date + b.created).localeCompare(a.date + a.created)),

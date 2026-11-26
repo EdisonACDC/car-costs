@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0b5 (pre-release)
+
+- **Fix (iPhone):** the Home Screen icon opened `index.html` without the link and asked for it again,
+  because iOS takes the icon's address from the manifest's `start_url`. On iPhone the app now removes
+  the manifest, so the icon opens the address of the page, which keeps `?c=` (the way Family Hub does it).
+  A used code is taken out of the address.
+- The panel's waiting links have **Show link**: only a hash is kept, so it makes an identical new link and
+  cancels the old one.
+- The phone's "A link is needed" screen says to copy the link from the panel and tap *Paste the link*.
+- Browser test: a simulated install on iPhone (new storage, the page's address as start address) links
+  without asking for the link.
+
 ## 0.3.0b4 (pre-release)
 
 - **The phone no longer needs a Home Assistant account.** In the panel, **Settings → Phone app → Link a

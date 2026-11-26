@@ -76,6 +76,7 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForSelector("#paste");
   await shot(page, S("00-link"));
   ok(await page.locator(".center h1").innerText() === "Serve un collegamento", "no link: \"Serve un collegamento\" in Italian");
+  ok((await page.locator(".center p").innerText()).includes("Copia il link dal pannello"), "no link: tells to copy the link from the panel");
   ok(!fake.calls.some((c) => c.action === "oauth"), "no redirect to Home Assistant's login");
   await page.fill("#pasted", "not a link");
   await page.click("#paste button");
@@ -358,11 +359,22 @@ for (const scheme of ["light", "dark"]) {
   ok(page.url().includes(`?c=${LINK_CODE}`) && !page.url().includes("#c="), "iPhone: the link moves to ?c= for the icon");
   await wait(900);
   await shot(page, "light-00-install-iphone");
+  ok(await page.locator('link[rel="manifest"]').count() === 0, "iPhone: no manifest, so the icon opens the address with the link");
+  // simulated installation: iOS stores the page's address as the icon's start address, in new storage
+  const start = page.url();
+  const installed = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "it-IT", userAgent: await page.evaluate(() => navigator.userAgent) });
+  await installed.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  const icon = await installed.newPage();
+  await icon.goto(start);
+  await icon.waitForSelector(".hero, #paste");
+  ok(await icon.locator(".hero").count() === 1 && await icon.locator("#paste").count() === 0, "the icon opens the app linked, without asking for the link");
+  ok(!icon.url().includes("c="), "the used code leaves the address");
+  await installed.close();
   // the Home Screen icon opens that address as an installed app
   await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
   await page.reload();
   await page.waitForSelector(".hero");
-  ok(fake.calls.filter((c) => c.action === "activate").length === 1, "iPhone icon: the app uses the link");
+  ok(fake.calls.filter((c) => c.action === "activate").length >= 1, "iPhone icon: the app uses the link");
   ok(!page.url().includes(LINK_CODE), "iPhone icon: the code leaves the address");
   await context.close();
 }
@@ -465,6 +477,12 @@ for (const scheme of ["light", "dark"]) {
     ok((await frame.locator("#phones").innerText()).includes("Waiting") || (await frame.locator("#phones").innerText()).includes("In attesa"), "the unused link is listed as waiting");
 
     // a linked phone: rename, change permission, unlink
+    // a link still waiting can be shown again (a new identical one replaces it)
+    const before = fake.calls.filter((c) => c.ws === "car_costs/phone_link").length;
+    await frame.locator('[data-ph="show"]').first().click();
+    await frame.locator(".sheet .qr svg").waitFor();
+    ok(fake.calls.filter((c) => c.ws === "car_costs/phone_link").length === before + 1 && fake.calls.some((c) => c.ws === "car_costs/phone_remove" && c.msg.invite_id), "\"Mostra link\" shows the link again");
+    await frame.locator('.sheet [data-close]').last().click(); await wait(600);
     await frame.locator('[data-ph="device"]').first().click();
     await frame.locator("#ph-save").waitFor();
     await wait(400); await shot(page, "panel-device-sheet");

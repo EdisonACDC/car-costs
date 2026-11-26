@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "car_costs"
-VERSION = "0.3.0b4"
+VERSION = "0.3.0b5"
 
 STORAGE_VERSION = 1
 
