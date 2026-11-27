@@ -29,15 +29,65 @@ let loading = false;
 function setScreen(html) { root.innerHTML = html; $("#tabs").hidden = true; }
 
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-// iPhone takes the Home Screen icon's address from the manifest's start_url if there is one, and
-// that has no ?c=. Without a manifest it uses the address of the page, which keeps the link
-// (the way Family Hub does it).
-if (isIOS()) document.querySelector('link[rel="manifest"]')?.remove();
+// index.html has no manifest: Safari reads it while loading, so it can not be taken out later. Only
+// the other browsers get it (iPhone then adds the Home Screen icon from the address of the page).
+if (!isIOS() && !document.querySelector('link[rel="manifest"]')) {
+  const link = document.createElement("link");
+  link.rel = "manifest"; link.href = "manifest.webmanifest";
+  document.head.append(link);
+}
 const standalone = () => navigator.standalone === true || matchMedia("(display-mode: standalone)").matches;
 let installPrompt = null;
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; $("#install-btn")?.removeAttribute("hidden"); });
 
-/** No link yet (or it stopped working): scan the QR from the panel, or paste the link. */
+const deviceName = () => (/iPad/.test(navigator.userAgent) ? "iPad" : isIOS() ? "iPhone" : /Android/.test(navigator.userAgent) ? "Android" : t("req_phone"));
+let waitId = 0;
+
+/** No access yet: ask for it by name; an administrator confirms in Home Assistant. */
+function showRequest(reason = "") {
+  waitId++;
+  const msg = { rejected: "req_rejected", expired: "req_expired", off: "req_off", many: "req_many", error: "req_error" }[reason] || "req_text";
+  setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("req_title"))}</h1><p>${esc(t(msg))}</p>
+    <form class="paste" id="ask"><input id="who" type="text" maxlength="40" autocomplete="off" value="${esc(deviceName())}" aria-label="${esc(t("req_name"))}">
+    <button class="btn" type="submit">${esc(reason && reason !== "off" ? t("req_retry") : t("req_go"))}</button></form>
+    <button class="btn ghost" id="other">${esc(t("req_other"))}</button></div>`);
+  $("#ask").onsubmit = (e) => { e.preventDefault(); askAccess($("#who").value.trim() || deviceName()); };
+  $("#other").onclick = () => showLink();
+  hideSplash();
+}
+async function askAccess(name) {
+  let r;
+  try { r = await auth.requestAccess(name); }
+  catch (e) {
+    if (e instanceof Unreachable) return showMessage(esc(t("unreachable")), () => askAccess(name));
+    return showRequest(e.status === 429 ? "many" : "error");
+  }
+  return showWaiting(r);
+}
+/** "Confirm on Home Assistant's phone – code 4821": look every 3 seconds. */
+function showWaiting(r) {
+  const mine = ++waitId;
+  setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("req_wait_title"))}</h1><p>${esc(t("req_wait"))}</p>
+    <div class="codebox" aria-label="${esc(t("req_code"))}">${esc(r.code)}</div><div class="spin" aria-hidden="true"></div>
+    <button class="btn ghost" id="cancel-req">${esc(t("req_cancel"))}</button></div>`);
+  $("#cancel-req").onclick = () => { waitId++; auth.cancelRequest(r.id); showRequest(); };
+  hideSplash();
+  const look = async () => {
+    if (mine !== waitId) return;
+    let s;
+    try { s = await auth.checkRequest(r.id); } catch { return setTimeout(look, 3000); }   // no network yet: keep trying
+    if (mine !== waitId) return;
+    if (s.status === "pending") return setTimeout(look, 3000);
+    if (s.status === "approved") {
+      state.cars = []; state.ov = null; state.hist = null; localStorage.removeItem(CACHE_KEY);
+      return !standalone() && !isIOS() ? showInstall(begin) : begin();
+    }
+    return showRequest(s.status);
+  };
+  setTimeout(look, 1500);
+}
+
+/** The other way: scan the QR with a link, or paste it. */
 function showLink(reason = "") {
   const msg = reason === "bad" ? t("link_bad") : reason === "off" ? t("link_off") : t("link_text");
   setScreen(`<div class="center"><div class="logo">🚙</div><h1>${esc(t("link_title"))}</h1><p>${esc(msg)}</p>
@@ -51,11 +101,14 @@ function showLink(reason = "") {
   hideSplash();
 }
 /** How to put the app on the Home Screen. On iPhone this is where the link waits (it is in the address). */
-function showInstall(onContinue) {
+function showInstall(onContinue, withOther = false) {
   setScreen(`<div class="center"><div class="logo">📲</div><h1>${esc(t("install_title"))}</h1>
     <p>${esc(isIOS() ? t("install_ios") : t("install_android"))}</p>
     ${!isIOS() ? `<button class="btn" id="install-btn" ${installPrompt ? "" : "hidden"}>${esc(t("install_btn"))}</button>` : ""}
-    ${onContinue ? `<button class="btn ghost" id="install-go">${esc(t("install_continue"))}</button>` : ""}</div>`);
+    ${onContinue ? `<button class="btn ghost" id="install-go">${esc(t("install_continue"))}</button>` : ""}
+    ${withOther ? `<button class="btn ghost" id="other">${esc(t("req_other"))}</button>` : ""}</div>`);
+  const other = $("#other");
+  if (other) other.onclick = () => showLink();
   const b = $("#install-btn");
   if (b) b.onclick = () => installPrompt?.prompt();
   const go = $("#install-go");
@@ -143,7 +196,7 @@ async function refresh({ quiet = false } = {}) {
     maybeWelcome();
     return true;
   } catch (e) {
-    if (e instanceof LoginRequired) { localStorage.removeItem(CACHE_KEY); state.ov = null; showLink("off"); return false; }
+    if (e instanceof LoginRequired) { localStorage.removeItem(CACHE_KEY); state.ov = null; showRequest("off"); return false; }
     if (e instanceof ApiError && e.status === 404) { showWelcome(); return false; }
     if (e instanceof Unreachable || e instanceof TypeError) {
       if (state.ov || loadCache()) { state.offline = true; render(); }
@@ -154,7 +207,7 @@ async function refresh({ quiet = false } = {}) {
     return false;
   } finally { loading = false; }
 }
-const relogin = () => { showLink("off"); };
+const relogin = () => { showRequest("off"); };
 initForms({ state, refresh, relogin });
 
 // ------------------------------------------------------------------ model
@@ -376,7 +429,7 @@ document.addEventListener("click", (e) => {
   const tip = el.closest("[data-tip]");
   if (tip) { const r = tip.closest(".chart")?.querySelector("[data-readout]"); if (r) r.textContent = tip.dataset.tip; return; }
   if (el.closest("#logout")) {
-    auth.forget(); state.ov = null; state.hist = null; localStorage.removeItem(CACHE_KEY); showLink();
+    auth.forget(); state.ov = null; state.hist = null; localStorage.removeItem(CACHE_KEY); showRequest();
   }
 });
 document.addEventListener("input", (e) => {
@@ -435,7 +488,14 @@ async function start() {
     const code = auth.readLink();
     if (code) return openLink(code);
   }
-  if (!auth.hasTokens()) return showLink();
+  if (!auth.hasTokens()) {
+    if (auth.EMBEDDED) return showLink();
+    const waiting = auth.savedRequest();
+    if (waiting) return showWaiting(waiting);   // the app was closed while it waited
+    // iPhone in Safari: the request is made by the Home Screen icon, which has its own storage.
+    if (isIOS() && !standalone()) return showInstall(null, true);
+    return showRequest();
+  }
   return begin();
 }
 

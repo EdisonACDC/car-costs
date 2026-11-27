@@ -56,6 +56,44 @@ export function keepLinkForHomeScreen(code) {
   try { history.replaceState(null, "", `${location.pathname}?c=${encodeURIComponent(code)}`); } catch { /* not allowed */ }
 }
 
+// ------------------------------------------------- asking for access (confirmed in Home Assistant)
+const REQ = "car_costs_request";
+export function savedRequest() {
+  try {
+    const r = JSON.parse(localStorage.getItem(REQ) || "null");
+    return r && typeof r.id === "string" && r.until > Date.now() ? r : null;
+  } catch { return null; }
+}
+function saveRequest(value) {
+  try { if (value) localStorage.setItem(REQ, JSON.stringify(value)); else localStorage.removeItem(REQ); } catch { /* storage blocked */ }
+}
+async function call(path, options) {
+  try { return await fetch(`${BASE}${APP}${path}`, options); } catch { throw new Unreachable(); }
+}
+/** Ask Home Assistant to let this phone in. Nothing is given until an administrator accepts. */
+export async function requestAccess(name) {
+  const res = await call("/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(body.error || `HTTP ${res.status}`, res.status, body);
+  const r = { id: body.request_id, code: body.code, until: Date.now() + (body.expires_in || 600) * 1000 };
+  saveRequest(r);
+  return r;
+}
+/** pending | approved (the token is kept) | rejected | expired. Unknown or used up counts as expired. */
+export async function checkRequest(id) {
+  const res = await call(`/request/${encodeURIComponent(id)}`);
+  if (res.status === 404) { saveRequest(null); return { status: "expired" }; }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Unreachable();
+  if (body.status === "approved") { keep(body.token); saveRequest(null); return { status: "approved" }; }
+  if (body.status !== "pending") saveRequest(null);
+  return body;
+}
+export async function cancelRequest(id) {
+  saveRequest(null);
+  try { await call(`/request/${encodeURIComponent(id)}`, { method: "DELETE" }); } catch { /* it expires by itself */ }
+}
+
 /** Trade the link's code for this phone's own token. */
 export async function activate(code) {
   let res;

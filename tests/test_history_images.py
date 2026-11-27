@@ -372,7 +372,7 @@ async def test_overview_has_new_fields(hass: HomeAssistant, hass_client) -> None
     ).json()
     assert body["app"] == {"url": "https://ha.example.com/car-costs", "external": True}
     assert body["ev_consumption"] == 22 and body["last_station"] == "Aral"
-    assert body["ref_fuel"] == "diesel" and body["version"] == "0.3.0b5"
+    assert body["ref_fuel"] == "diesel" and body["version"] == "0.3.0b6"
     assert body["ai_task_available"] is False
     assert "ev_share_pct" in body["summary"]
 

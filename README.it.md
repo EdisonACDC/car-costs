@@ -92,17 +92,20 @@ mancanti in rosso, e premi **Salva**.
 
 ## App sul telefono
 
-Il telefono **non** ha bisogno di un account di Home Assistant e non vede mai il login di Home Assistant. Lo si collega dal pannello, come Family Hub fa con gli invitati:
+Il telefono **non** ha bisogno di un account di Home Assistant e non vede mai il login di Home Assistant. Chiede l'accesso e tu confermi, come la conferma del genitore in Family Hub:
 
-1. In **Costi Auto → Impostazioni → App sul telefono** premi **Collega un telefono**. Dagli un nome (per esempio "iPhone Marius"), scegli le auto visibili e i permessi: *Solo vedere*, *Vedere e aggiungere*, oppure *Vedere, aggiungere e modificare*.
-2. Compare un **QR code** (con **Copia** e **Condividi**). Inquadralo col telefono. Il link vale una volta sola e per 24 ore; il codice sta dopo il `#` dell'indirizzo, quindi non finisce in nessun log.
-3. Il telefono lo scambia con un token suo (256 bit, in Home Assistant solo come hash SHA-256, rinnovato ogni 30 giorni) e apre l'app. Basta.
+1. In **Costi Auto → Impostazioni → App sul telefono** c'è un **QR code** con l'indirizzo dell'app (nessun segreto dentro). Inquadralo col telefono.
+2. **iPhone:** in Safari tocca Condividi → *Aggiungi alla schermata Home*, poi apri l'icona. **Android / PC:** l'app può chiedere subito (e propone *Installa app*).
+3. L'app mostra **Richiedi l'accesso** con il nome del telefono. Premilo: il telefono mostra "Conferma sul telefono di Home Assistant – codice **4821**".
+4. Home Assistant manda una **notifica** con *Accetta* / *Rifiuta* (ai telefoni scelti in *Notifica le richieste a*), una notifica persistente, e mostra la richiesta nel pannello (**Richieste in attesa**) con lo stesso codice. Controlla che il codice sia quello del telefono, poi accetta. Dalla notifica: *Vedere e aggiungere*, tutte le auto. Dal pannello scegli permessi (*Solo vedere*, *Vedere e aggiungere*, *Vedere, aggiungere e modificare*) e auto.
+5. Il telefono riceve il suo token (256 bit, in Home Assistant solo come hash SHA-256, rinnovato ogni 30 giorni) e apre l'app. L'icona non chiede più nessun link.
 
-- **iPhone:** se il link si apre in Safari, l'app spiega: Condividi → *Aggiungi alla schermata Home*, poi apri l'icona. Il collegamento è già dentro.
-- **Android:** Chrome → ⋮ → *Installa app*.
-- I **telefoni collegati** sono nell'elenco del pannello (nome, ultimo accesso, permessi). Puoi rinominarne uno, cambiare permessi e auto, scollegarlo (smette subito) o collegare un *nuovo telefono* al suo posto.
-- Il telefono riceve solo le auto e le azioni che gli hai dato, da `/api/car_costs/app/…`. Non riceve mai entità, configurazione o altro di Home Assistant. Le richieste sono limitate per telefono e per indirizzo, e un indirizzo si blocca dopo 10 attivazioni sbagliate.
-- Senza un indirizzo esterno (Nabu Casa o URL esterno di Home Assistant) il pannello avvisa che il link funziona solo in casa. L'ultimo riepilogo resta disponibile offline.
+- Una richiesta dura 10 minuti. Al massimo 3 in attesa insieme e 5 all'ora per indirizzo; oltre c'è `429`. Prima dell'accettazione non esce nessun dato (auto, importi, nomi) e il token si consegna una volta sola.
+- I **telefoni collegati** sono nell'elenco del pannello (nome, ultimo accesso, permessi). Puoi rinominarne uno, cambiare permessi e auto, scollegarlo (smette subito) o collegare un *nuovo telefono* al suo posto. Ci sono anche gli ultimi eventi.
+- *Altri modi* (per chi non ha l'app Companion): un link con un codice monouso (24 ore, dopo il `#` dell'indirizzo), mostrato come QR, e *Incolla il link* sul telefono.
+- Il telefono riceve solo le auto e le azioni che gli hai dato, da `/api/car_costs/app/…`. Non riceve mai entità, configurazione o altro di Home Assistant. Le richieste sono limitate per telefono e per indirizzo.
+- Automazioni: l'evento `car_costs_phone_request` (`request_id`, `name`, `status`) parte quando una richiesta viene fatta e decisa.
+- Senza un indirizzo esterno (Nabu Casa o URL esterno di Home Assistant) il pannello avvisa che l'app funziona solo in casa. L'ultimo riepilogo resta disponibile offline.
 
 ## Servizi
 

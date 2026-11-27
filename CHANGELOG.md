@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.3.0b6 (pre-release)
+
+- **The phone asks, you confirm** (like a parent's approval in Family Hub). The Home Screen icon no longer
+  needs a link or a QR: with no token the app shows **Request access** (name pre-filled: iPhone, Android or
+  Phone) and calls `POST /api/car_costs/app/request`. Home Assistant creates a pending request (128-bit id,
+  4-digit check code, 10 minutes) and the phone shows "Confirm on the Home Assistant phone – code 4821",
+  checking `GET /api/car_costs/app/request/{id}` every 3 s. `DELETE` cancels it. The app keeps the request
+  if it is closed and reopened.
+- **Confirmation in Home Assistant:** an actionable notification (*Accept* / *Reject*, tag = request id,
+  closed once decided) to the `notify.mobile_app_*` services chosen in the panel (*Notify requests to*), a
+  persistent notification, and **Waiting requests** in the panel (Settings → Phone app) with the code.
+  From the notification: *View and add*, all cars; from the panel: permission and cars. The token is handed
+  to the phone once. Websocket commands `car_costs/requests`, `car_costs/request_decide`,
+  `car_costs/request_notify` (administrators only) and the event `car_costs_phone_request`.
+- **Security:** at most 3 waiting requests and 5 an hour per address (`429`); nothing but the status is given
+  before the approval; a used or unknown id answers `404`; expired requests are cleaned automatically;
+  the last 200 events (requested, accepted, rejected, expired, cancelled, from where) are logged.
+- **The panel's QR is now only the address of the app** (no token). The old link with a one-time code and
+  *Paste the link* stay under *Other ways*.
+- **iPhone:** `index.html` has no static manifest any more (Safari reads it while loading, so taking it out
+  with JavaScript did not work); other browsers get it from JavaScript. In Safari the app explains *Share →
+  Add to Home Screen*; the request is made by the icon.
+- Tests: the request flow (panel, notification action, one-time token, rejection, expiry, cancel, limits,
+  unknown action, non-administrators) and in the browser the iPhone icon (emulated standalone) asking,
+  being approved, rejected or expired.
+
 ## 0.3.0b5 (pre-release)
 
 - **Fix (iPhone):** the Home Screen icon opened `index.html` without the link and asked for it again,

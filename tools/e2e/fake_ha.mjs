@@ -40,8 +40,10 @@ export const DEVICE_TOKEN = "dev-token-for-tests";
 export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
   let db = seed();
   const calls = [];
-  const station = { ai, aiResult, app: { url: "https://demo.ui.nabu.casa/car-costs", external: true }, perm: "edit", revoked: false, strictLinks: false };
+  const station = { ai, aiResult, app: { url: "https://demo.ui.nabu.casa/car-costs", external: true }, perm: "edit", revoked: false, strictLinks: false, notify: [], limited: false };
   const usedLinks = new Set();
+  const requests = new Map();   // id -> { id, name, code, status, delivered }
+  let requestCount = 0;
   const newPhones = () => ({
     devices: [{ id: "d1", name: "iPhone Marius", label: "iPhone · Safari", permission: "edit", entries: ["car1"], activated_at: new Date().toISOString(), last_seen: new Date().toISOString() }],
     invites: [],
@@ -49,7 +51,22 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
   let phones = newPhones();
   const ws = (msg) => {
     const fail = (code) => ({ status: 400, body: { error: { code, message: code } } });
-    if (msg.type === "car_costs/phones") return { body: { ...phones, cars: station.noCars ? [] : [{ id: "car1", title: "Kodiaq iV" }, { id: "car2", title: "Octavia" }] } };
+    const cars = station.noCars ? [] : [{ id: "car1", title: "Kodiaq iV" }, { id: "car2", title: "Octavia" }];
+    const waiting = () => [...requests.values()].filter((r) => r.status === "pending").map((r) => ({ id: r.id, name: r.name, code: r.code, label: "iPhone · Safari", address: "192.168.1.20", created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 540e3).toISOString() }));
+    if (msg.type === "car_costs/phones") return { body: { ...phones, cars, app: station.app } };
+    if (msg.type === "car_costs/requests") return { body: { requests: waiting(), cars, notify: station.notify, notify_options: ["mobile_app_marius"], log: [{ at: new Date().toISOString(), event: "created", name: "iPhone", address: "192.168.1.20" }] } };
+    if (msg.type === "car_costs/request_decide") {
+      const r = requests.get(msg.request_id);
+      if (!r || r.status !== "pending") return fail("not_found");
+      r.status = msg.approve ? "approved" : "rejected";
+      calls.push({ ws: msg.type, msg });
+      return { body: { requests: waiting(), cars, notify: station.notify, notify_options: [], log: [] } };
+    }
+    if (msg.type === "car_costs/request_notify") {
+      station.notify = msg.services;
+      calls.push({ ws: msg.type, msg });
+      return { body: { requests: waiting(), cars, notify: station.notify, notify_options: ["mobile_app_marius"], log: [] } };
+    }
     if (msg.type === "car_costs/phone_link") {
       if (!station.app.url) return fail("no_url");
       const invite = { id: `i${phones.invites.length + 1}`, name: msg.name, entries: msg.entries, permission: msg.permission, expires_at: new Date(Date.now() + 864e5).toISOString(), replaces: msg.replaces || null };
@@ -86,7 +103,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     };
   };
   const overview = () => ({
-    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b5", app: station.app, start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
+    config_entry_id: "car1", title: "Kodiaq iV", version: "0.3.0b6", app: station.app, start_date: iso(ago(92)), ref_name: "VW Passat B8", ref_fuel: "diesel", ref_consumption: 5.8,
     electricity_price: 0.32, ref_fuel_price: 1.65, ev_consumption: 22, has_home_meter: true, ai_task_available: station.ai,
     last_station: db.log.filter((e) => e.kind === "refuel" && e.station).sort((a, b) => b.date.localeCompare(a.date))[0]?.station || null,
     summary: summary(), entries: [...db.log].sort((a, b) => (b.date + b.created).localeCompare(a.date + a.created)),
@@ -142,6 +159,24 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     if (p.startsWith("/config/")) return send(res, 200, "<h1>Home Assistant</h1>", "text/html");
     if (p.startsWith("/api/car_costs/app/")) {
       const rest = p.slice("/api/car_costs/app/".length);
+      if (rest === "request" && req.method === "POST") {
+        const body = JSON.parse((await readBody(req)).toString() || "{}");
+        calls.push({ path: p, action: "request", name: body.name, auth: !!req.headers.authorization });
+        if (station.limited) return send(res, 429, { error: "too_many", message: "too_many" });
+        const r = { id: `REQ${++requestCount}-abcdefghijklmnop`, name: body.name, code: "4821", status: "pending", delivered: false };
+        requests.set(r.id, r);
+        return send(res, 201, { request_id: r.id, code: r.code, expires_in: 600 });
+      }
+      if (rest.startsWith("request/")) {
+        const r = requests.get(rest.slice(8));
+        if (!r) return send(res, 404, { error: "not_found", message: "not_found" });
+        if (req.method === "DELETE") { requests.delete(r.id); calls.push({ path: p, action: "cancel" }); return send(res, 200, { status: "cancelled" }); }
+        calls.push({ path: p, action: "poll" });
+        if (r.status === "pending") return send(res, 200, { status: "pending", expires_in: 500 });
+        requests.delete(r.id);   // the answer is given once
+        if (r.status === "approved") return send(res, 200, { status: "approved", token: DEVICE_TOKEN, refresh_after: 2592000 });
+        return send(res, 200, { status: r.status });
+      }
       if (rest === "activate" && req.method === "POST") {
         const body = JSON.parse((await readBody(req)).toString() || "{}");
         calls.push({ path: p, action: "activate", code: body.token });
@@ -191,7 +226,7 @@ export function startFake({ port = 0, ai = true, aiResult = null } = {}) {
     send(res, 404, "not found", "text/plain");
   });
   return new Promise((resolve) => server.listen(port, "127.0.0.1", () => {
-    resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, station, reset: () => { db = seed(); phones = newPhones(); station.app = { url: "https://demo.ui.nabu.casa/car-costs", external: true }; usedLinks.clear(); calls.length = 0; station.perm = "edit"; station.revoked = false; station.strictLinks = false; station.ai = true; station.aiResult = null; station.noCars = false; }, close: () => new Promise((r) => server.close(r)) });
+    resolve({ url: `http://127.0.0.1:${server.address().port}`, calls, station, decide: (status) => { for (const r of requests.values()) if (r.status === "pending") r.status = status; }, reset: () => { db = seed(); phones = newPhones(); station.app = { url: "https://demo.ui.nabu.casa/car-costs", external: true }; usedLinks.clear(); requests.clear(); station.notify = []; station.limited = false; calls.length = 0; station.perm = "edit"; station.revoked = false; station.strictLinks = false; station.ai = true; station.aiResult = null; station.noCars = false; }, close: () => new Promise((r) => server.close(r)) });
   }));
 }
 

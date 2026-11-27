@@ -71,8 +71,14 @@ for (const scheme of ["light", "dark"]) {
   const S = (n) => `${scheme}-${n}`;
   const receipt = await receiptJpeg(context);
 
-  // no link yet: the app asks for one, it never sends the phone to Home Assistant's login
+  // no access yet: the app offers to ask for it (confirmed in Home Assistant), never Home Assistant's login
   await page.goto(`${fake.url}/car-costs`);
+  await page.waitForSelector("#ask");
+  await shot(page, S("00-request"));
+  ok(await page.locator(".center h1").innerText() === "Richiedi l'accesso", "no token: \"Richiedi l'accesso\" in Italian, no link or QR asked");
+  ok(await page.locator("#who").inputValue() === "Telefono", "the phone name is filled in");
+  ok(!fake.calls.some((c) => c.action === "request"), "nothing is asked before the button is pressed");
+  await page.click("#other");
   await page.waitForSelector("#paste");
   await shot(page, S("00-link"));
   ok(await page.locator(".center h1").innerText() === "Serve un collegamento", "no link: \"Serve un collegamento\" in Italian");
@@ -313,15 +319,69 @@ for (const scheme of ["light", "dark"]) {
   await openApp(page);
   await page.click('[data-tab="settings"]');
   await page.click("#logout");
-  await page.waitForSelector("#paste");
+  await page.waitForSelector("#ask");
   ok(await page.evaluate(() => !localStorage.getItem("car_costs_device")), "the token is removed from the phone");
   await openApp(page);
   fake.station.revoked = true;                 // unlinked from the panel
   await page.reload();
-  await page.waitForSelector("#paste");
-  ok((await page.locator(".center p").innerText()).includes("scollegato"), "an unlinked phone is told to ask for a new link");
+  await page.waitForSelector("#ask");
+  ok((await page.locator(".center p").innerText()).includes("scollegato"), "an unlinked phone is told to ask for access again");
   ok(await page.evaluate(() => !localStorage.getItem("car_costs_device")), "an unlinked phone forgets its token");
   fake.station.revoked = false;
+  await context.close();
+}
+
+// the request: ask, wait with the code, the administrator confirms in Home Assistant
+{
+  fake.reset();
+  const { context, page } = await newPage("light");
+  await page.goto(`${fake.url}/car-costs`);
+  await page.click("#ask button");
+  await page.waitForSelector(".codebox");
+  await wait(600);
+  await shot(page, "light-00-waiting");
+  ok((await page.locator(".codebox").innerText()) === "4821", "waiting: the check code is shown");
+  ok((await page.locator(".center p").innerText()).includes("Conferma sul telefono di Home Assistant"), "waiting: \"Conferma sul telefono di Home Assistant\"");
+  const asked = fake.calls.find((c) => c.action === "request");
+  ok(asked && asked.name === "Telefono" && !asked.auth, "the request carries the phone name and no credentials");
+  await page.reload();                                    // the app was closed and opened again
+  await page.waitForSelector(".codebox");
+  ok((await page.locator(".codebox").innerText()) === "4821" && fake.calls.filter((c) => c.action === "request").length === 1, "closed and reopened: it keeps waiting, no second request");
+  await wait(1800);
+  ok(fake.calls.some((c) => c.action === "poll"), "the phone checks the request");
+  ok(await page.evaluate(() => !localStorage.getItem("car_costs_device")), "no token while waiting");
+  fake.decide("approved");
+  await page.waitForSelector("#install-go", { timeout: 9000 });
+  ok(await page.evaluate(([x]) => localStorage.getItem("car_costs_device") === x && !localStorage.getItem("car_costs_request"), [DEVICE_TOKEN]), "approved: the phone keeps the token it was given");
+  await page.click("#install-go");
+  await page.waitForSelector(".hero");
+  ok(true, "approved: the overview opens");
+  await context.close();
+}
+{
+  const { context, page } = await newPage("light");
+  await page.goto(`${fake.url}/car-costs`);
+  await page.click("#ask button");
+  await page.waitForSelector(".codebox");
+  fake.decide("rejected");
+  await page.waitForSelector("#ask", { timeout: 9000 });
+  ok((await page.locator(".center p").innerText()).includes("rifiutata"), "rejected: a clear message");
+  ok((await page.locator("#ask button").innerText()) === "Riprova", "rejected: a Retry button");
+  await page.click("#ask button");
+  await page.waitForSelector(".codebox");
+  await page.click("#cancel-req");
+  await page.waitForSelector("#ask");
+  ok(fake.calls.some((c) => c.action === "cancel") && await page.evaluate(() => !localStorage.getItem("car_costs_request")), "Cancel withdraws the request");
+  await page.click("#ask button");
+  await page.waitForSelector(".codebox");
+  fake.decide("expired");
+  await page.waitForSelector("#ask", { timeout: 9000 });
+  ok((await page.locator(".center p").innerText()).includes("scaduta"), "expired: a clear message");
+  fake.station.limited = true;
+  await page.click("#ask button");
+  await page.waitForFunction(() => document.querySelector(".center p")?.textContent.includes("Troppe richieste"));
+  ok(true, "too many requests: told to wait");
+  fake.station.limited = false;
   await context.close();
 }
 
@@ -376,6 +436,34 @@ for (const scheme of ["light", "dark"]) {
   await page.waitForSelector(".hero");
   ok(fake.calls.filter((c) => c.action === "activate").length >= 1, "iPhone icon: the app uses the link");
   ok(!page.url().includes(LINK_CODE), "iPhone icon: the code leaves the address");
+  // the page itself carries no manifest (Safari reads it while loading), whoever opens it
+  const html = await fetch(`${fake.url}/car_costs_static/app/index.html`).then((r) => r.text());
+  ok(!/rel=["']manifest["']/.test(html), "index.html has no static manifest link");
+  // Safari, no link: the instructions, and no request (the icon makes it)
+  fake.reset();
+  const sctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "it-IT", userAgent: await page.evaluate(() => navigator.userAgent) });
+  const safari = await sctx.newPage();
+  await safari.goto(`${fake.url}/car-costs`);
+  await safari.waitForSelector(".center h1");
+  ok(await safari.locator(".center h1").innerText() === "Metti l'app sulla schermata Home", "iPhone in Safari: instructions, not a request");
+  ok((await safari.locator(".center p").innerText()).includes("conferma la richiesta"), "iPhone: tells to confirm the request after opening the icon");
+  ok(!fake.calls.some((c) => c.action === "request") && await safari.locator("#other").count() === 1, "iPhone in Safari: no request, other ways offered");
+  // the Home Screen icon: empty storage, no link in the address: it asks, the administrator confirms
+  const home = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: "it-IT", userAgent: await safari.evaluate(() => navigator.userAgent) });
+  await home.addInitScript(() => Object.defineProperty(navigator, "standalone", { value: true }));
+  const icon2 = await home.newPage();
+  await icon2.goto(`${fake.url}/car-costs`);
+  await icon2.waitForSelector("#ask");
+  ok(await icon2.locator("#who").inputValue() === "iPhone", "the icon: the name is \"iPhone\"");
+  await icon2.click("#ask button");
+  await icon2.waitForSelector(".codebox");
+  await wait(900);
+  await shot(icon2, "light-00-waiting-iphone");
+  fake.decide("approved");
+  await icon2.waitForSelector(".hero", { timeout: 9000 });
+  ok(true, "the icon: request, confirmation, overview");
+  await home.close();
+  await sctx.close();
   await context.close();
 }
 
@@ -461,6 +549,10 @@ for (const scheme of ["light", "dark"]) {
     // link a phone: name, cars, permission -> QR + copy
     fake.calls.length = 0;
     await frame.locator('[data-tab="settings"]').click();
+    await frame.locator("#phones .qr svg").waitFor();
+    ok(await frame.locator("#phones .qr svg").count() === 1, "the panel shows a QR of the app address (no token)");
+    ok((await frame.locator("#phones .qr").getAttribute("data-qr")) === "https://demo.ui.nabu.casa/car-costs", "the QR has the app address only");
+    await frame.locator("#phones summary").first().click();
     await frame.locator('[data-ph="connect"]').click();
     await frame.locator("#ph-name").fill("iPad Anna");
     await frame.locator('input[name="ph-car"][value="car2"]').uncheck();
@@ -475,6 +567,26 @@ for (const scheme of ["light", "dark"]) {
     ok(await frame.locator("#toast.in").count() === 1, "Copy confirms with a toast");
     await frame.locator('.sheet [data-close]').last().click(); await wait(600);
     ok((await frame.locator("#phones").innerText()).includes("Waiting") || (await frame.locator("#phones").innerText()).includes("In attesa"), "the unused link is listed as waiting");
+
+    // a request from a phone: accept with permission and cars, or reject
+    for (const name of ["iPhone Anna", "Android Luca"]) await fetch(`${fake.url}/api/car_costs/app/request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) });
+    await frame.locator('[data-tab="log"]').click(); await frame.locator('[data-tab="settings"]').click();
+    await frame.locator(".row.req").first().waitFor();
+    ok((await frame.locator(".row.req .code").first().innerText()) === "4821" && await frame.locator(".row.req").count() === 2, "waiting requests are listed with their code");
+    await wait(300); await shot(page, "panel-requests");
+    await frame.locator('[data-ph="accept"]').first().click();
+    await frame.locator("#ph-ok").waitFor();
+    ok(await frame.locator('input[name="ph-perm"][value="add"]').isChecked() && await frame.locator('input[name="ph-car"]:checked').count() === 2, "accept: \"view and add\" and all cars by default");
+    await frame.locator('input[name="ph-perm"][value="edit"]').check();
+    await frame.locator('input[name="ph-car"][value="car2"]').uncheck();
+    await frame.locator("#ph-ok").click();
+    await wait(500);
+    const yes = fake.calls.find((c) => c.ws === "car_costs/request_decide" && c.msg.approve);
+    ok(yes && yes.msg.permission === "edit" && yes.msg.cars.join() === "car1", "accepted with the permission and the cars chosen");
+    await frame.locator('[data-ph="reject"]').first().click(); await wait(500);
+    ok(fake.calls.some((c) => c.ws === "car_costs/request_decide" && c.msg.approve === false), "rejected from the panel");
+    await frame.locator('[data-notify="mobile_app_marius"]').check(); await wait(300);
+    ok(fake.calls.some((c) => c.ws === "car_costs/request_notify" && c.msg.services.join() === "mobile_app_marius"), "the phones to notify can be chosen");
 
     // a linked phone: rename, change permission, unlink
     // a link still waiting can be shown again (a new identical one replaces it)

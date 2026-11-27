@@ -35,11 +35,13 @@ from homeassistant.components.websocket_api.decorators import (
     require_admin,
     websocket_command,
 )
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DOMAIN, PANEL_URL_PATH
 
 LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +65,38 @@ ROTATE_GRACE = timedelta(days=7)
 INVITE_KEEP = timedelta(days=7)
 MAX_NAME = 40
 MAX_DEVICES = 50
+
+REQUEST_MINUTES = 10
+MAX_PENDING = 3
+REQUESTS_PER_HOUR = 5
+LOG_KEEP = 200
+PENDING = "pending"
+APPROVED = "approved"
+REJECTED = "rejected"
+ACTION = re.compile(r"^CAR_COSTS_(ACCEPT|REJECT)_([A-Za-z0-9_-]{8,64})$")
+EVENT_REQUEST = f"{DOMAIN}_phone_request"
+_NOT_TEXT = re.compile(r"[<>\[\]()`*_#|\\]")
+
+TEXTS = {
+    "it": (
+        "Nuovo telefono «{name}» vuole accedere – codice {code}",
+        "Accetta",
+        "Rifiuta",
+        "Apri il pannello Costi Auto",
+    ),
+    "de": (
+        "Neues Handy „{name}“ möchte zugreifen – Code {code}",
+        "Annehmen",
+        "Ablehnen",
+        "Panel Costi Auto öffnen",
+    ),
+    "en": (
+        "New phone “{name}” wants access – code {code}",
+        "Accept",
+        "Reject",
+        "Open the Costi Auto panel",
+    ),
+}
 
 HUB_KEY = f"{DOMAIN}_devices"
 DEVICE_FIELDS = ("id", "name", "label", "activated_at", "last_seen", "entries", "permission")
@@ -214,15 +248,26 @@ class DeviceHub:
         self.read_limit = RateLimiter(60)
         self.write_limit = RateLimiter(10)
         self.activation = ActivationGuard()
+        self.request_limit = RateLimiter(REQUESTS_PER_HOUR, 3600.0)
+        self.requests: dict[str, dict[str, Any]] = {}
+        self.notify: list[str] = []
+        self.log: list[dict[str, Any]] = []
 
     async def async_load(self) -> None:
         data = await self._store.async_load() or {}
         self.invites = dict(data.get("invites", {}))
         self.devices = dict(data.get("devices", {}))
+        self.notify = [str(n) for n in data.get("notify", [])]
+        self.log = list(data.get("log", []))[-LOG_KEEP:]
         self._cleanup()
 
     def _data(self) -> dict[str, Any]:
-        return {"invites": self.invites, "devices": self.devices}
+        return {
+            "invites": self.invites,
+            "devices": self.devices,
+            "notify": self.notify,
+            "log": self.log[-LOG_KEEP:],
+        }
 
     async def async_save(self) -> None:
         await self._store.async_save(self._data())
@@ -303,11 +348,26 @@ class DeviceHub:
         invite = self.invite_by_hash(token_hash(token))
         if invite is None or not self._invite_open(invite):
             raise PhoneError("invite_invalid", 403)
+        now = _now()
+        device, device_token = self._new_device(
+            invite["name"], user_agent, invite["entries"], invite["permission"]
+        )
+        old = invite.get("replaces")
+        if isinstance(old, str):
+            self.devices.pop(old, None)  # "new phone": the old one stops at once
+        invite["status"] = USED
+        invite["closed_at"] = _iso(now)
+        await self._add_device(device)
+        return device, device_token
+
+    def _new_device(
+        self, name: str, user_agent: str, entries: list[str], permission: str
+    ) -> tuple[dict[str, Any], str]:
         device_token = new_token()
         now = _now()
         device = {
             "id": uuid.uuid4().hex,
-            "name": invite["name"],
+            "name": name,
             "label": describe_device(user_agent)[:60],
             "activated_at": _iso(now),
             "last_seen": _iso(now),
@@ -315,14 +375,12 @@ class DeviceHub:
             "token_at": _iso(now),
             "prev_hash": None,
             "prev_until": None,
-            "entries": list(invite["entries"]),
-            "permission": invite["permission"],
+            "entries": list(entries),
+            "permission": permission,
         }
-        old = invite.get("replaces")
-        if isinstance(old, str):
-            self.devices.pop(old, None)  # "new phone": the old one stops at once
-        invite["status"] = USED
-        invite["closed_at"] = _iso(now)
+        return device, device_token
+
+    async def _add_device(self, device: dict[str, Any]) -> None:
         self.devices[device["id"]] = device
         await self.async_save()
         persistent_notification.async_create(
@@ -331,7 +389,184 @@ class DeviceHub:
             title="Car Costs",
             notification_id=f"{DOMAIN}_phone_{device['id']}",
         )
-        return device, device_token
+
+    # ----- access requests (the phone asks, an administrator confirms) -------------
+    def _record(self, what: str, request: dict[str, Any]) -> None:
+        self.log.append(
+            {
+                "at": _iso(_now()),
+                "event": what,
+                "name": request["name"],
+                "address": request["address"],
+            }
+        )
+        del self.log[:-LOG_KEEP]
+        self.save_later()
+
+    async def async_purge(self) -> None:
+        """Requests that waited too long are dropped (and their notifications closed)."""
+        now = _now()
+        for rid, request in list(self.requests.items()):
+            expires = _parse(request["expires_at"])
+            if request["status"] == PENDING and (expires is None or expires <= now):
+                self._record("expired", request)
+                del self.requests[rid]
+                await self._close_notices(rid)
+
+    async def async_create_request(
+        self, name: str, user_agent: str, address: str
+    ) -> dict[str, Any]:
+        await self.async_purge()
+        if not self.request_limit.allow(f"ip:{address}"):
+            raise PhoneError("slow_down", 429)
+        if sum(r["status"] == PENDING for r in self.requests.values()) >= MAX_PENDING:
+            raise PhoneError("too_many", 429)
+        text = _NOT_TEXT.sub("", _NAME_CLEAN.sub(" ", str(name or ""))).strip()[:MAX_NAME]
+        now = _now()
+        request: dict[str, Any] = {
+            "id": secrets.token_urlsafe(16),  # 128 bits
+            "name": text or "Telefono",
+            "code": f"{secrets.randbelow(10000):04d}",
+            "label": describe_device(user_agent)[:60],
+            "user_agent": user_agent[:200],
+            "address": address,
+            "created_at": _iso(now),
+            "expires_at": _iso(now + timedelta(minutes=REQUEST_MINUTES)),
+            "status": PENDING,
+            "token": None,
+        }
+        self.requests[request["id"]] = request
+        self._record("created", request)
+        await self._announce(request)
+        return request
+
+    def request_state(self, request_id: str) -> dict[str, Any] | None:
+        """What the phone may know: the status and the time left, nothing else."""
+        request = self.requests.get(request_id)
+        if request is None:
+            return None
+        expires = _parse(request["expires_at"]) or _now()
+        left = int((expires - _now()).total_seconds())
+        if request["status"] == PENDING and left <= 0:
+            return {"status": "expired"}
+        if request["status"] == PENDING:
+            return {"status": PENDING, "expires_in": left}
+        if request["status"] == APPROVED:
+            return {"status": APPROVED, "token": request["token"], "refresh_after": 30 * 86400}
+        return {"status": REJECTED}
+
+    async def async_poll(self, request_id: str) -> dict[str, Any] | None:
+        """The phone's check. A final answer is given once, then the request is forgotten."""
+        state = self.request_state(request_id)
+        if state is None:
+            return None
+        if state["status"] == "expired":
+            await self.async_purge()
+        elif state["status"] != PENDING:
+            del self.requests[request_id]
+        return state
+
+    async def async_cancel_request(self, request_id: str) -> bool:
+        request = self.requests.get(request_id)
+        if request is None or request["status"] != PENDING:
+            return False
+        self._record("cancelled", request)
+        del self.requests[request_id]
+        await self._close_notices(request_id)
+        return True
+
+    async def async_decide(
+        self,
+        request_id: str,
+        approve: bool,
+        permission: str = ADD,
+        entries: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """An administrator accepts or rejects a request that is still waiting."""
+        request = self.requests.get(request_id)
+        expires = _parse(request["expires_at"]) if request else None
+        if request is None or request["status"] != PENDING or expires is None or expires <= _now():
+            raise PhoneError("not_found", 404)
+        if approve:
+            if permission not in PERMISSIONS:
+                raise PhoneError("invalid", 422)
+            device, token = self._new_device(
+                request["name"], request["user_agent"], entries or [], permission
+            )
+            request["status"] = APPROVED
+            request["token"] = token
+            await self._add_device(device)
+            self._record("approved", request)
+        else:
+            request["status"] = REJECTED
+            self._record("rejected", request)
+        await self._close_notices(request_id)
+        self.hass.bus.async_fire(
+            EVENT_REQUEST,
+            {"request_id": request_id, "name": request["name"], "status": request["status"]},
+        )
+        return request
+
+    def _texts(self) -> tuple[str, str, str, str]:
+        return TEXTS.get(self.hass.config.language[:2], TEXTS["en"])
+
+    async def _announce(self, request: dict[str, Any]) -> None:
+        text, accept, reject, open_panel = self._texts()
+        message = text.format(name=request["name"], code=request["code"])
+        persistent_notification.async_create(
+            self.hass,
+            f"{message}\n\n[{open_panel}](/{PANEL_URL_PATH})",
+            title="Costi Auto",
+            notification_id=f"{DOMAIN}_request_{request['id']}",
+        )
+        data = {
+            "title": "Costi Auto",
+            "message": message,
+            "data": {
+                "tag": request["id"],
+                "actions": [
+                    {"action": f"CAR_COSTS_ACCEPT_{request['id']}", "title": accept},
+                    {"action": f"CAR_COSTS_REJECT_{request['id']}", "title": reject},
+                ],
+            },
+        }
+        for service in self.notify:
+            try:
+                await self.hass.services.async_call("notify", service, data, blocking=False)
+            except Exception:  # noqa: BLE001 - a missing phone must not stop the others
+                LOGGER.warning("Could not notify %s", service)
+        self.hass.bus.async_fire(
+            EVENT_REQUEST,
+            {"request_id": request["id"], "name": request["name"], "status": PENDING},
+        )
+
+    async def _close_notices(self, request_id: str) -> None:
+        persistent_notification.async_dismiss(self.hass, f"{DOMAIN}_request_{request_id}")
+        for service in self.notify:
+            try:
+                await self.hass.services.async_call(
+                    "notify",
+                    service,
+                    {"message": "clear_notification", "data": {"tag": request_id}},
+                    blocking=False,
+                )
+            except Exception:  # noqa: BLE001
+                LOGGER.warning("Could not clear the notice on %s", service)
+
+    def pending(self) -> list[dict[str, Any]]:
+        now = _now()
+        return [
+            {
+                k: r[k]
+                for k in ("id", "name", "code", "label", "address", "created_at", "expires_at")
+            }
+            for r in self.requests.values()
+            if r["status"] == PENDING and (_parse(r["expires_at"]) or now) > now
+        ]
+
+    def notify_options(self) -> list[str]:
+        services = self.hass.services.async_services_for_domain("notify")
+        return sorted(s for s in services if s.startswith("mobile_app_"))
 
     def device_for(self, token: str) -> dict[str, Any] | None:
         digest = token_hash(token)
@@ -419,6 +654,29 @@ async def async_setup_devices(hass: HomeAssistant) -> DeviceHub:
     hub = DeviceHub(hass)
     await hub.async_load()
     hass.data[HUB_KEY] = hub
+
+    async def _action(event: Event) -> None:
+        """Accept / Reject buttons of the notification on the administrator's phone."""
+        match = ACTION.match(str(event.data.get("action", "")))
+        if match is None:
+            return
+        entries = [c["id"] for c in _cars(hass)]
+        try:
+            await hub.async_decide(match.group(2), match.group(1) == "ACCEPT", ADD, entries)
+        except PhoneError:
+            return  # unknown, used up or expired: ignored
+
+    async def _tick(_when: datetime) -> None:
+        await hub.async_purge()
+
+    hass.bus.async_listen("mobile_app_notification_action", _action)
+    stop = async_track_time_interval(hass, _tick, timedelta(minutes=1))
+
+    @callback
+    def _stop(_event: Event) -> None:
+        stop()
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _stop)
     return hub
 
 
@@ -446,7 +704,11 @@ def _fail(connection: ActiveConnection, msg: dict[str, Any], err: PhoneError) ->
 @callback
 def ws_phones(hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]) -> None:
     """Linked phones, open links and the cars that can be given to a phone."""
-    connection.send_result(msg["id"], {**hub_of(hass).listing(), "cars": _cars(hass)})
+    from .network import app_link  # noqa: PLC0415
+
+    connection.send_result(
+        msg["id"], {**hub_of(hass).listing(), "cars": _cars(hass), "app": app_link(hass)}
+    )
 
 
 @websocket_command(
@@ -541,4 +803,78 @@ async def ws_phone_remove(
     connection.send_result(msg["id"], hub_of(hass).listing())
 
 
-COMMANDS = (ws_phones, ws_phone_link, ws_phone_update, ws_phone_remove)
+def _requests_result(hass: HomeAssistant) -> dict[str, Any]:
+    hub = hub_of(hass)
+    return {
+        "requests": hub.pending(),
+        "cars": _cars(hass),
+        "notify": hub.notify,
+        "notify_options": hub.notify_options(),
+        "log": hub.log[-20:][::-1],
+    }
+
+
+@websocket_command({vol.Required("type"): "car_costs/requests"})
+@require_admin
+@async_response
+async def ws_requests(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Access requests that wait, who is told about them, and the latest events."""
+    await hub_of(hass).async_purge()
+    connection.send_result(msg["id"], _requests_result(hass))
+
+
+@websocket_command(
+    {
+        vol.Required("type"): "car_costs/request_decide",
+        vol.Required("request_id"): str,
+        vol.Required("approve"): bool,
+        vol.Optional("permission", default=ADD): vol.In(PERMISSIONS),
+        vol.Optional("cars"): [str],
+    }
+)
+@require_admin
+@async_response
+async def ws_request_decide(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Accept (with permission and cars) or reject a phone's request."""
+    try:
+        entries = (
+            _valid_entries(hass, msg["cars"]) if "cars" in msg else [c["id"] for c in _cars(hass)]
+        )
+        await hub_of(hass).async_decide(
+            msg["request_id"], msg["approve"], msg["permission"], entries
+        )
+    except PhoneError as err:
+        _fail(connection, msg, err)
+        return
+    connection.send_result(msg["id"], _requests_result(hass))
+
+
+@websocket_command(
+    {vol.Required("type"): "car_costs/request_notify", vol.Required("services"): [str]}
+)
+@require_admin
+@async_response
+async def ws_request_notify(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Which phones get the notification for a new request."""
+    hub = hub_of(hass)
+    known = set(hub.notify_options())
+    hub.notify = [s for s in dict.fromkeys(msg["services"]) if s in known]
+    await hub.async_save()
+    connection.send_result(msg["id"], _requests_result(hass))
+
+
+COMMANDS = (
+    ws_phones,
+    ws_phone_link,
+    ws_phone_update,
+    ws_phone_remove,
+    ws_requests,
+    ws_request_decide,
+    ws_request_notify,
+)

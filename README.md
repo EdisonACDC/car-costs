@@ -91,17 +91,20 @@ for anything missing, and press **Save**.
 
 ## Phone app
 
-The phone does **not** need a Home Assistant account and never sees a Home Assistant login. You link it from the panel, the way Family Hub invites a guest:
+The phone does **not** need a Home Assistant account and never sees a Home Assistant login. It asks for access and you confirm, like a parent's approval in Family Hub:
 
-1. In **Costi Auto → Settings → Phone app** press **Link a phone**. Give it a name (for example "iPhone Marius"), choose the cars it can see and what it may do: *View only*, *View and add*, or *View, add and change*.
-2. A **QR code** appears (with **Copy** and **Share**). Scan it with the phone. The link works once and for 24 hours; the code sits after the `#` of the address, so it never reaches a log.
-3. The phone trades it for a token of its own (256 bits, kept in Home Assistant only as a SHA-256 hash, renewed every 30 days) and opens the app. That is all.
+1. In **Costi Auto → Settings → Phone app** a **QR code** shows the app address (no secret in it). Scan it with the phone.
+2. **iPhone:** in Safari tap Share → *Add to Home Screen*, then open the icon. **Android / PC:** the app can ask straight away (and offers *Install app*).
+3. The app shows **Request access** with the phone's name. Press it: the phone shows "Confirm on the Home Assistant phone – code **4821**".
+4. Home Assistant sends a **notification** with *Accept* / *Reject* (to the phones chosen under *Notify requests to*), a persistent notification, and lists the request in the panel (**Waiting requests**) with the same code. Check that the code is the one on the phone, then accept. From the notification: *View and add*, all cars. From the panel you choose the permission (*View only*, *View and add*, *View, add and change*) and the cars.
+5. The phone receives its token (256 bits, kept in Home Assistant only as a SHA-256 hash, renewed every 30 days) and opens the app. The icon never asks for a link again.
 
-- **iPhone:** if the link opens in Safari, the app explains: Share → *Add to Home Screen*, then open the icon. The link is already inside it.
-- **Android:** Chrome → ⋮ → *Install app*.
-- **Linked phones** are listed in the panel (name, last access, permissions). You can rename one, change its permissions or cars, unlink it (it stops at once) or link a *new phone* in its place.
-- A phone only gets the cars and actions it was given, at `/api/car_costs/app/…`. It never receives entities, the configuration or anything else from Home Assistant. Requests are rate-limited per phone and per address, and an address is blocked after 10 wrong activations.
-- Without an external address (Nabu Casa or Home Assistant's external URL) the panel warns that the link works at home only. The last summary stays available offline.
+- A request lasts 10 minutes. At most 3 wait at the same time and 5 an hour per address; more get `429`. Nothing (cars, amounts, names) is given before you accept, and the token is handed over once.
+- **Linked phones** are listed in the panel (name, last access, permissions). You can rename one, change its permissions or cars, unlink it (it stops at once) or link a *new phone* in its place. The latest events are listed too.
+- *Other ways* (for people without the Companion app): a link with a one-time code (24 hours, in the `#` part of the address), shown as a QR, and *Paste the link* on the phone.
+- A phone only gets the cars and actions it was given, at `/api/car_costs/app/…`. It never receives entities, the configuration or anything else from Home Assistant. Requests are rate-limited per phone and per address.
+- Automations: the event `car_costs_phone_request` (`request_id`, `name`, `status`) fires when a request is made and decided.
+- Without an external address (Nabu Casa or Home Assistant's external URL) the panel warns that the app works at home only. The last summary stays available offline.
 
 ## Services
 

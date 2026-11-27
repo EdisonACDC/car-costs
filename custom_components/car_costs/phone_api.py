@@ -21,7 +21,7 @@ from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.http import HomeAssistantView
 
 from .const import DOMAIN
-from .devices import ADD, EDIT, VIEW, DeviceHub, PhoneError, allows, hub_of
+from .devices import ADD, EDIT, REQUEST_MINUTES, VIEW, DeviceHub, PhoneError, allows, hub_of
 from .receipt import MIME_BY_SUFFIX, image_path
 from .tracker import CarCostTracker
 
@@ -347,10 +347,68 @@ class ServiceView(_PhoneView):
         return _json({"service_response": result})
 
 
+class RequestView(_PhoneView):
+    """POST a request for access. Nothing is given before an administrator confirms it."""
+
+    url = f"{BASE}/request"
+    name = "api:car_costs:app:request"
+
+    async def post(self, request: web.Request) -> web.Response:
+        hub = hub_of(request.app["hass"])
+        try:
+            body = await _body(request)
+            name = body.get("name") if isinstance(body, dict) else None
+            made = await hub.async_create_request(
+                name if isinstance(name, str) else "",
+                request.headers.get("User-Agent", ""),
+                _address(request),
+            )
+        except PhoneError as err:
+            return _fail(err)
+        return _json(
+            {"request_id": made["id"], "code": made["code"], "expires_in": REQUEST_MINUTES * 60},
+            HTTPStatus.CREATED,
+        )
+
+
+class RequestStatusView(_PhoneView):
+    """GET the state of a request (and, once, the token); DELETE to cancel it."""
+
+    url = f"{BASE}/request/{{request_id}}"
+    name = "api:car_costs:app:request_status"
+
+    def _known(self, request: web.Request, request_id: str) -> DeviceHub:
+        hub = hub_of(request.app["hass"])
+        if len(request_id) > MAX_TOKEN or not hub.read_limit.allow(f"ip:{_address(request)}"):
+            raise PhoneError("slow_down", HTTPStatus.TOO_MANY_REQUESTS)
+        return hub
+
+    async def get(self, request: web.Request, request_id: str) -> web.Response:
+        try:
+            hub = self._known(request, request_id)
+        except PhoneError as err:
+            return _fail(err)
+        state = await hub.async_poll(request_id)
+        if state is None:
+            return _fail(PhoneError("not_found", 404))
+        return _json(state)
+
+    async def delete(self, request: web.Request, request_id: str) -> web.Response:
+        try:
+            hub = self._known(request, request_id)
+        except PhoneError as err:
+            return _fail(err)
+        if not await hub.async_cancel_request(request_id):
+            return _fail(PhoneError("not_found", 404))
+        return _json({"status": "cancelled"})
+
+
 def register_views(hass: HomeAssistant) -> None:
     logging.getLogger("aiohttp.access").addFilter(_HideLink())
     for view in (
         ActivateView,
+        RequestView,
+        RequestStatusView,
         MeView,
         CarsView,
         OverviewView,

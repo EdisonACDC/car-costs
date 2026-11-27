@@ -92,17 +92,20 @@ Felder sind rot, und drückst **Speichern**.
 
 ## App auf dem Handy
 
-Das Handy braucht **kein** Home-Assistant-Konto und sieht nie einen Home-Assistant-Login. Du verbindest es im Panel, so wie Family Hub einen Gast einlädt:
+Das Handy braucht **kein** Home-Assistant-Konto und sieht nie einen Home-Assistant-Login. Es fragt den Zugriff an und du bestätigst, wie die Bestätigung der Eltern in Family Hub:
 
-1. Drücke in **Costi Auto → Einstellungen → App auf dem Handy** auf **Handy verbinden**. Gib einen Namen ein (zum Beispiel „iPhone Marius“), wähle die sichtbaren Autos und die Rechte: *Nur ansehen*, *Ansehen und hinzufügen* oder *Ansehen, hinzufügen und ändern*.
-2. Es erscheint ein **QR-Code** (mit **Kopieren** und **Teilen**). Scanne ihn mit dem Handy. Der Link gilt einmal und 24 Stunden; der Code steht hinter dem `#` der Adresse und landet deshalb in keinem Log.
-3. Das Handy tauscht ihn gegen ein eigenes Token (256 Bit, in Home Assistant nur als SHA-256-Hash gespeichert, alle 30 Tage erneuert) und öffnet die App. Das war's.
+1. In **Costi Auto → Einstellungen → App auf dem Handy** steht ein **QR-Code** mit der Adresse der App (kein Geheimnis darin). Scanne ihn mit dem Handy.
+2. **iPhone:** In Safari Teilen → *Zum Home-Bildschirm*, dann das Symbol öffnen. **Android / PC:** Die App kann sofort anfragen (und bietet *App installieren* an).
+3. Die App zeigt **Zugriff anfragen** mit dem Namen des Handys. Tippe darauf: Das Handy zeigt „Bestätige auf dem Handy von Home Assistant – Code **4821**“.
+4. Home Assistant sendet eine **Benachrichtigung** mit *Annehmen* / *Ablehnen* (an die Handys unter *Anfragen melden an*), eine dauerhafte Benachrichtigung und zeigt die Anfrage im Panel (**Offene Anfragen**) mit demselben Code. Prüfe, ob der Code der auf dem Handy ist, dann nimm an. Aus der Benachrichtigung: *Ansehen und hinzufügen*, alle Autos. Im Panel wählst du Rechte (*Nur ansehen*, *Ansehen und hinzufügen*, *Ansehen, hinzufügen und ändern*) und Autos.
+5. Das Handy erhält sein Token (256 Bit, in Home Assistant nur als SHA-256-Hash, alle 30 Tage erneuert) und öffnet die App. Das Symbol fragt nie wieder nach einem Link.
 
-- **iPhone:** Öffnet sich der Link in Safari, erklärt die App: Teilen → *Zum Home-Bildschirm*, dann das Symbol öffnen. Die Verbindung ist schon darin.
-- **Android:** Chrome → ⋮ → *App installieren*.
-- **Verbundene Handys** stehen in der Liste im Panel (Name, letzter Zugriff, Rechte). Du kannst eines umbenennen, Rechte und Autos ändern, es trennen (es stoppt sofort) oder ein *neues Handy* an seiner Stelle verbinden.
-- Ein Handy bekommt nur die Autos und Aktionen, die du ihm gegeben hast, unter `/api/car_costs/app/…`. Es erhält nie Entitäten, die Konfiguration oder sonst etwas aus Home Assistant. Anfragen sind pro Handy und pro Adresse begrenzt; nach 10 falschen Aktivierungen wird eine Adresse gesperrt.
-- Ohne externe Adresse (Nabu Casa oder externe URL von Home Assistant) warnt das Panel, dass der Link nur zu Hause funktioniert. Die letzte Übersicht bleibt offline verfügbar.
+- Eine Anfrage gilt 10 Minuten. Höchstens 3 warten gleichzeitig und 5 pro Stunde und Adresse; mehr ergibt `429`. Vor der Annahme werden keine Daten (Autos, Beträge, Namen) herausgegeben, und das Token wird nur einmal übergeben.
+- **Verbundene Handys** stehen in der Liste im Panel (Name, letzter Zugriff, Rechte). Du kannst eines umbenennen, Rechte und Autos ändern, es trennen (es stoppt sofort) oder ein *neues Handy* an seiner Stelle verbinden. Die letzten Ereignisse stehen auch dort.
+- *Andere Wege* (ohne Companion-App): ein Link mit Einmal-Code (24 Stunden, hinter dem `#` der Adresse), als QR-Code, und *Link einfügen* auf dem Handy.
+- Ein Handy bekommt nur die Autos und Aktionen, die du ihm gegeben hast, unter `/api/car_costs/app/…`. Es erhält nie Entitäten, die Konfiguration oder sonst etwas aus Home Assistant. Anfragen sind pro Handy und pro Adresse begrenzt.
+- Automationen: Das Ereignis `car_costs_phone_request` (`request_id`, `name`, `status`) wird bei Anfrage und Entscheidung ausgelöst.
+- Ohne externe Adresse (Nabu Casa oder externe URL von Home Assistant) warnt das Panel, dass die App nur zu Hause funktioniert. Die letzte Übersicht bleibt offline verfügbar.
 
 ## Dienste
 

@@ -209,3 +209,16 @@ a.btn{text-decoration:none}
 .row.dev{width:100%;text-align:left}
 .row.dev .m{display:grid;gap:2px;flex:1;min-width:0}.row.dev small{color:var(--t2);font-size:12px}
 .phone .btns{margin-bottom:0}
+
+.codebox{font-size:52px;font-weight:700;letter-spacing:.22em;padding:8px 8px 8px 22px;border-radius:18px;background:var(--glass);border:1px solid var(--stroke);font-variant-numeric:tabular-nums}
+.spin{width:28px;height:28px;border-radius:50%;border:3px solid var(--stroke);border-top-color:var(--acc);animation:spin 1s linear infinite;margin:6px auto 14px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.phone .qr{max-width:200px}
+.group details{margin-top:16px}
+.group summary{cursor:pointer;font-size:14px;color:var(--t2);padding:8px 0}
+.row.req{align-items:center}
+.row.req .code{font-weight:700;font-size:20px;letter-spacing:.12em;font-variant-numeric:tabular-nums}
+.small-log{font-size:12px;color:var(--t2);line-height:1.6}
+.row.req .m{display:grid;gap:2px;flex:1;min-width:0}.row.req small{color:var(--t2);font-size:12px}
+.row.req .chip{flex:none}
